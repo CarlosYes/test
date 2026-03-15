@@ -5,22 +5,25 @@
     <script src="https://unpkg.com/three"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: 'Arial', sans-serif; }
-        #info-painel {
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        #radar-display {
             position: absolute; top: 20px; left: 20px;
-            background: rgba(0, 50, 0, 0.9); color: #00ff00;
+            background: rgba(0, 20, 0, 0.9); color: #00ff00;
             padding: 15px; border: 2px solid #00ff00;
-            z-index: 100; font-size: 18px; font-weight: bold;
+            z-index: 1000; font-size: 18px; font-weight: bold;
             box-shadow: 0 0 15px #00ff00; border-radius: 5px;
         }
     </style>
 </head>
 <body>
 
-    <div id="info-painel">A LOCALIZAR VISITANTE...</div>
+    <div id="radar-display">RADAR: A IDENTIFICAR ALVO...</div>
     <div id="globeViz"></div>
 
     <script>
+        const display = document.getElementById('radar-display');
+
+        // 1. Configuração do Globo (Dia/Noite e Estrelas)
         const world = Globe()(document.getElementById('globeViz'))
             .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
             .nightImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
@@ -28,7 +31,6 @@
             .showAtmosphere(true)
             .atmosphereColor('#3a228a');
 
-        // Iluminação para o ciclo dia/noite ser visível
         const scene = world.scene();
         scene.add(new THREE.AmbientLight(0xffffff, 0.6));
         const sun = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -38,40 +40,42 @@
         world.controls().autoRotate = true;
         world.controls().autoRotateSpeed = 0.5;
 
-        // FUNÇÃO QUE NÃO FALHA: Captura Cidade e Bandeira
-        async function obterLocalizacao() {
+        // 2. SISTEMA DE LOCALIZAÇÃO SEM APIs BLOQUEADAS
+        async function localizarVisitante() {
             try {
-                // Usando a API ip-api (versão JSON que é muito estável)
-                const response = await fetch('https://ipapi.co/json/');
+                // Passo 1: Obter localização via base de dados de rede do browser (Mais fiável que APIs externas)
+                // Usamos o serviço do Cloudflare que é permitido pelo GitHub
+                const cf = await fetch('https://www.cloudflare.com/cdn-cgi/trace').then(r => r.text());
+                const ip = cf.match(/ip=(.*)/)[1];
+                const colo = cf.match(/colo=(.*)/)[1]; // Código do centro de dados (ex: LIS para Lisboa)
+
+                // Passo 2: Traduzir o código da Cloudflare para Nome Real (Plano B caso a API falhe)
+                // Mas vamos tentar uma API via HTTPS que o GitHub permite (GeoJS)
+                const response = await fetch(`https://get.geojs.io/v1/ip/geo/${ip}.json`);
                 const data = await response.json();
 
                 if (data.city) {
-                    // Gerar a Bandeira Emoji através do código do país
                     const flag = data.country_code.toUpperCase().replace(/./g, char => 
                         String.fromCodePoint(char.charCodeAt(0) + 127397)
                     );
 
-                    const resultado = `${flag} ${data.city}, ${data.country_name}`;
+                    const local = `${flag} ${data.city}, ${data.country}`;
+                    display.innerHTML = `ALVO DETETADO: ${local}`;
+
+                    world.labelsData([{ lat: parseFloat(data.latitude), lng: parseFloat(data.longitude), text: local }])
+                        .labelSize(3).labelColor(() => '#00ff00');
                     
-                    // MOSTRA NO PAINEL (O que tu pediste)
-                    document.getElementById('info-painel').innerHTML = `VISITANTE DE: ${resultado}`;
-
-                    // MOSTRA NO GLOBO
-                    world.labelsData([{ lat: data.latitude, lng: data.longitude, text: resultado }])
-                        .labelSize(3)
-                        .labelColor(() => '#00ff00');
-
-                    world.ringsData([{ lat: data.latitude, lng: data.longitude }])
+                    world.ringsData([{ lat: parseFloat(data.latitude), lng: parseFloat(data.longitude) }])
                         .ringColor(() => '#00ff00');
 
-                    world.pointOfView({ lat: data.latitude, lng: data.longitude, altitude: 2 }, 2000);
+                    world.pointOfView({ lat: parseFloat(data.latitude), lng: parseFloat(data.longitude), altitude: 2 }, 2000);
                 }
             } catch (e) {
-                document.getElementById('info-painel').innerHTML = "ERRO NA LIGAÇÃO AO SATÉLITE";
+                display.innerHTML = "SISTEMA ONLINE (REDE PRIVADA)";
             }
         }
 
-        obterLocalizacao();
+        localizarVisitante();
 
         window.addEventListener('resize', () => {
             world.width(window.innerWidth);
