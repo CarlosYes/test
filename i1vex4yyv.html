@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v175 - ZERO TRUST</title>
+    <title>RAU RADAR v176 - CORE TRACER</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -23,24 +23,24 @@
             font-size: 11px; font-weight: 900; display: flex; align-items: center; gap: 6px;
             white-space: nowrap; border: 1px solid #fff;
         }
-        .d-rau { width: 14px; height: 14px; background: #fff; border-radius: 50%; margin-top: 5px; border: 2px solid #39ff14; animation: p 0.5s infinite alternate; }
-        @keyframes p { from { transform: scale(1); opacity: 1; } to { transform: scale(4); opacity: 0; } }
-        #source-tag { font-size: 9px; background: #ff3131; color: #fff; padding: 2px 5px; margin-top: 5px; display: inline-block; }
+        .d-rau { width: 14px; height: 14px; background: #fff; border-radius: 50%; margin-top: 5px; border: 2px solid #39ff14; animation: p 0.4s infinite alternate; }
+        @keyframes p { from { transform: scale(1); opacity: 1; } to { transform: scale(5); opacity: 0; } }
+        #meta { font-size: 10px; color: #39ff14; margin-top: 10px; border-top: 1px solid #39ff1444; padding-top: 5px; }
     </style>
 </head>
 <body>
 
 <div class="hud">
-    <div style="font-size: 9px; letter-spacing: 5px; opacity: 0.7;">RAU SYSTEM v175</div>
+    <div style="font-size: 9px; letter-spacing: 5px; opacity: 0.7;">RAU SYSTEM v176</div>
     <div id="count" class="count">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px;">VALIDANDO ORIGEM...</div>
-    <div id="source-tag">FONTE: DESCONHECIDA</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px;">A TENTAR BYPASS DE REDE...</div>
+    <div id="meta">SINAL: PROCURANDO HARDWARE</div>
 </div>
 
 <div id="globeViz"></div>
 
 <script>
-    const RAU_ID = 'NODE-' + Math.random().toString(36).substr(2, 5);
+    const RAU_ID = 'CORE-' + Math.random().toString(36).substr(2, 5);
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
 
     const world = Globe()(document.getElementById('globeViz'))
@@ -55,13 +55,11 @@
             return el;
         });
 
-    function startRadar(lat, lng, cityName, source) {
-        document.getElementById('status').innerText = cityName.toUpperCase();
-        document.getElementById('source-tag').innerText = `FONTE: ${source}`;
-        document.getElementById('source-tag').style.background = source === 'GPS/WIFI' ? '#39ff14' : '#ff3131';
-        document.getElementById('source-tag').style.color = source === 'GPS/WIFI' ? '#000' : '#fff';
-
-        const geo = { lat, lng, city: cityName, clientId: RAU_ID };
+    function deploy(lat, lng, city, method) {
+        document.getElementById('status').innerText = city.toUpperCase();
+        document.getElementById('meta').innerText = `MÉTODO: ${method} | LAT: ${lat.toFixed(3)}`;
+        
+        const geo = { lat, lng, city, clientId: RAU_ID };
         const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: RAU_ID });
         const channel = ably.channels.get('rau-live-radar');
 
@@ -82,25 +80,26 @@
         world.pointOfView({ lat, lng, altitude: 1.5 }, 2000);
     }
 
-    // TENTATIVA 1: O método que a Google usa (Alta Fidelidade)
-    navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-            const lat = pos.coords.latitude;
-            const lng = pos.coords.longitude;
-            // Geocoding reverso para saber o nome real da rua/cidade
-            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
-            const data = await res.json();
-            const name = (data.address.city || data.address.town || "OSTENDE").toUpperCase();
-            startRadar(lat, lng, name, 'GPS/WIFI');
-        },
-        async () => {
-            // TENTATIVA 2: Se o utilizador negar ou falhar, usa o IP (Baixa Fidelidade)
-            const res = await fetch('https://ipapi.co/json/');
-            const data = await res.json();
-            startRadar(data.latitude, data.longitude, data.city.toUpperCase(), 'IP-DATABASE');
-        },
-        { enableHighAccuracy: true, timeout: 5000 }
-    );
+    // O ÚNICO MÉTODO QUE NÃO USA O IP DA SEDE (ISP)
+    if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                // Se o hardware responder, ele ignora o IP e faz Reverse Geocoding
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
+                const data = await res.json();
+                const city = (data.address.city || data.address.town || data.address.village || "LOCAL").toUpperCase();
+                deploy(pos.coords.latitude, pos.coords.longitude, city, "HARDWARE-CORE");
+            },
+            async (err) => {
+                // Se negares ou o hardware falhar, o IP vai mentir
+                document.getElementById('status').innerText = "HARDWARE NEGADO. REDE VAI MENTIR.";
+                const res = await fetch('https://ipapi.co/json/');
+                const data = await res.json();
+                deploy(data.latitude, data.longitude, data.city.toUpperCase(), "ISP-DATABASE (UNRELIABLE)");
+            },
+            { enableHighAccuracy: true, timeout: 15000 }
+        );
+    }
 
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
