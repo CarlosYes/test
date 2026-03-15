@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v83 - NOMAD</title>
+    <title>RAU RADAR v84 - ZENITH</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Arial Black', sans-serif; background: #87CEEB; }
-        #globeViz { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; }
+        #globeViz { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
         
         .hud {
             position: absolute; top: 25px; left: 25px; z-index: 1000;
@@ -21,7 +21,7 @@
         .count-big { font-size: 110px; font-weight: 900; color: #fff; line-height: 0.7; letter-spacing: -8px; }
         
         /* ETIQUETA VERDE - BANDEIRA + CIDADE */
-        .m-rau { display: flex; flex-direction: column; align-items: center; }
+        .m-rau { display: flex; flex-direction: column; align-items: center; z-index: 10; }
         .l-rau {
             background: #39ff14; color: #000; padding: 6px 14px; 
             font-size: 14px; font-weight: 900; display: flex; align-items: center; gap: 8px;
@@ -31,17 +31,17 @@
         .d-rau { 
             width: 14px; height: 14px; background: #fff; border-radius: 50%; 
             margin-top: 6px; border: 3px solid #39ff14; 
-            animation: pulse-v83 1.2s infinite ease-out; 
+            animation: pulse-v84 1.2s infinite ease-out; 
         }
-        @keyframes pulse-v83 { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(4); opacity: 0; } }
+        @keyframes pulse-v84 { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(4); opacity: 0; } }
     </style>
 </head>
 <body>
 
 <div class="hud">
-    <div class="v-tag">RAU SYSTEM v83</div>
+    <div class="v-tag">RAU SYSTEM v84 [STABLE]</div>
     <div id="user-count-hud" class="count-big">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 15px; font-family: monospace; border-top: 2px solid #39ff14; padding-top: 8px;">A RASTREAR...</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 15px; font-family: monospace; border-top: 2px solid #39ff14; padding-top: 8px;">RASTREAMENTO ONLINE</div>
 </div>
 
 <div id="globeViz"></div>
@@ -50,7 +50,7 @@
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
     const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 5);
 
-    // 1. O GLOBO CARREGA PRIMEIRO (SEM MEDO)
+    // 1. INICIALIZAÇÃO IMEDIATA DO GLOBO
     const world = Globe()(document.getElementById('globeViz'))
         .globeImageUrl('//unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
         .backgroundColor('#87CEEB')
@@ -67,16 +67,15 @@
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
 
-    // 2. MOTOR DE LOCALIZAÇÃO (ATUA POR CIMA)
-    window.updatePos = function(data) {
+    // 2. MOTOR DE LOCALIZAÇÃO v84
+    window.activeV84 = function(data) {
         if (data.status === 'success') {
-            document.getElementById('status').innerText = `FIX: ${data.city.toUpperCase()}`;
-            
+            document.getElementById('status').innerText = `LOCALIZADO: ${data.city.toUpperCase()}`;
             const myLoc = { lat: data.lat, lng: data.lon, city: data.city, countryCode: data.countryCode };
             
             // Ligar ao Ably
             const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
-            const channel = ably.channels.get('rau-v83-live');
+            const channel = ably.channels.get('rau-v84-live');
 
             ably.connection.on('connected', () => {
                 channel.presence.enter(myLoc);
@@ -97,9 +96,9 @@
         }
     };
 
-    // Chamada imediata do IP-API
+    // Chamada forçada do motor de IP
     const script = document.createElement('script');
-    script.src = 'https://ip-api.com/json/?callback=updatePos&t=' + Date.now();
+    script.src = 'https://ip-api.com/json/?callback=activeV84&timestamp=' + Date.now();
     document.body.appendChild(script);
 </script>
 </body>
