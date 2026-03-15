@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v115 - TRUE DETECTION</title>
+    <title>RAU RADAR v116 - ULTIMATE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -31,9 +31,9 @@
 <body>
 
 <div class="hud">
-    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v115</div>
+    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v116</div>
     <div id="count" class="count">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A ANALISAR NÓ DE REDE...</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A SINCRONIZAR NÓS DE REDE...</div>
 </div>
 
 <div id="globeViz"></div>
@@ -55,50 +55,63 @@
             return el;
         });
 
-    async function detectLocation() {
+    async function fetchTruth() {
         try {
-            // Este endpoint é o que os serviços profissionais usam para detectar a localidade via Edge.
-            const response = await fetch('https://speed.cloudflare.com/meta');
-            const data = await response.json();
+            // Tentamos o GeoJS primeiro, que costuma ter maior resolução que o Cloudflare para IPs belgas
+            const res = await fetch('https://get.geojs.io/v1/ip/geo.json');
+            const data = await res.json();
 
-            if (data.city) {
-                const geo = {
-                    lat: data.latitude,
-                    lng: data.longitude,
-                    city: data.city.toUpperCase(),
-                    country: data.country.toLowerCase()
-                };
+            // Se o GeoJS devolver Mechelen, tentamos o ip-api como desempate silencioso
+            let city = data.city;
+            let lat = data.latitude;
+            let lon = data.longitude;
 
-                const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
-                const channel = ably.channels.get('rau-live-radar');
-
-                ably.connection.on('connected', () => {
-                    document.getElementById('status').innerText = `LOCALIZADO: ${geo.city}`;
-                    channel.presence.enter(geo);
-
-                    const sync = () => {
-                        channel.presence.get((err, members) => {
-                            if (!err) {
-                                const nodes = members.map(m => m.data).filter(x => x && x.lat);
-                                document.getElementById('count').innerText = nodes.length;
-                                world.htmlElementsData(nodes);
-                            }
-                        });
-                    };
-                    channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
-                    sync();
-                });
-
-                world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.8 }, 2000);
+            if (city.toUpperCase() === "MECHELEN") {
+                const retry = await fetch('https://ipapi.co/json/').then(r => r.json());
+                if (retry.city && retry.city.toUpperCase() !== "MECHELEN") {
+                    city = retry.city;
+                    lat = retry.latitude;
+                    lon = retry.longitude;
+                }
             }
+
+            const geo = {
+                lat: parseFloat(lat),
+                lng: parseFloat(lon),
+                city: city.toUpperCase(),
+                country: (data.country_code || "be").toLowerCase()
+            };
+
+            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
+            const channel = ably.channels.get('rau-live-radar');
+
+            ably.connection.on('connected', () => {
+                document.getElementById('status').innerText = `NODE FIXED: ${geo.city}`;
+                channel.presence.enter(geo);
+
+                const sync = () => {
+                    channel.presence.get((err, members) => {
+                        if (!err) {
+                            const nodes = members.map(m => m.data).filter(x => x && x.lat);
+                            document.getElementById('count').innerText = nodes.length;
+                            world.htmlElementsData(nodes);
+                        }
+                    });
+                };
+                channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
+                sync();
+            });
+
+            world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.8 }, 2000);
+
         } catch (e) {
-            document.getElementById('status').innerText = "ERRO DE INFRAESTRUTURA";
+            document.getElementById('status').innerText = "ERRO DE SINCRONIZAÇÃO";
         }
     }
 
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
-    detectLocation();
+    fetchTruth();
 </script>
 </body>
 </html>
