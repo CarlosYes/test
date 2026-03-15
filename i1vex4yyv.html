@@ -2,43 +2,46 @@
 <html lang="pt">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v197 - STELLAR FOCUS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RAU RADAR v188 - RESPONSIVE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
-        #globeViz { width: 100vw; height: 100vh; position: absolute; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; height: 100vh; width: 100vw; }
+        #globeViz { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
         
-        /* HUD Adaptável Chronos */
+        /* HUD Inteligente e Adaptável */
         .p-hud {
-            position: absolute; top: 30px; left: 20px;
+            position: absolute; 
+            top: clamp(10px, 3vh, 30px); 
+            left: clamp(10px, 3vw, 20px);
             background: rgba(0,0,0,0.85); border-left: 2px solid #39ff14;
-            padding: 12px 18px; color: #fff; z-index: 1000;
+            padding: clamp(8px, 2vh, 12px) clamp(12px, 2vw, 18px); 
+            color: #fff; z-index: 1000;
             border-radius: 0 4px 4px 0; backdrop-filter: blur(8px);
+            max-width: 80vw;
         }
-        .p-city { font-size: 14px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; }
-        .p-time { font-size: 9px; color: #39ff14; font-family: monospace; margin-top: 2px; opacity: 0.8; }
-        .p-live { color: #39ff14; font-size: 10px; font-family: monospace; margin-top: 6px; }
+        .p-city { font-size: clamp(12px, 2vw, 14px); font-weight: 900; letter-spacing: 1px; text-transform: uppercase; }
+        .p-time { font-size: clamp(8px, 1.2vw, 10px); color: #39ff14; font-family: monospace; margin-top: 2px; }
+        .p-live { color: #39ff14; font-size: clamp(9px, 1.5vw, 11px); font-family: monospace; margin-top: 6px; }
 
-        /* Marcadores Néon */
+        /* Marcadores que escalam com o ecrã */
         .m-rau { display: flex; flex-direction: column; align-items: center; pointer-events: none; }
         .m-tag { 
-            display: flex; align-items: center; gap: 6px; 
-            background: rgba(0, 0, 0, 0.95); padding: 4px 8px; 
+            display: flex; align-items: center; gap: 5px; 
+            background: rgba(0, 0, 0, 0.95); padding: 3px 6px; 
             border: 1px solid #39ff14; border-radius: 2px; margin-bottom: 4px;
         }
-        .m-flag { width: 16px; height: auto; }
-        .m-city { color: #fff; font-size: 9px; font-weight: bold; text-transform: uppercase; }
+        .m-flag { width: clamp(14px, 2vw, 18px); height: auto; }
+        .m-city { color: #fff; font-size: clamp(8px, 1.2vw, 10px); font-weight: bold; text-transform: uppercase; }
         
         .dot-active { 
-            width: 6px; height: 6px; background: #39ff14; border-radius: 50%; 
+            width: clamp(5px, 1vw, 7px); height: clamp(5px, 1vw, 7px); 
+            background: #39ff14; border-radius: 50%; 
             box-shadow: 0 0 10px #39ff14; border: 1px solid #fff;
         }
-        .dot-ghost { 
-            width: 4px; height: 4px; background: #440000; border-radius: 50%; opacity: 0.6;
-        }
+        .dot-ghost { width: 4px; height: 4px; background: #440000; border-radius: 50%; opacity: 0.6; }
     </style>
 </head>
 <body>
@@ -46,28 +49,27 @@
 <div id="globeViz"></div>
 
 <div class="p-hud">
-    <div id="status-text" class="p-city">SYSTEM SYNC...</div>
+    <div id="status-text" class="p-city">NETWORK SYNC...</div>
     <div id="time-text" class="p-time">---</div>
     <div class="p-live">LIVE NODES: <span id="count">0</span></div>
 </div>
 
 <script>
-    const RAU_ID = 'STELLAR-' + Math.random().toString(36).substr(2, 5);
+    const RAU_ID = 'RESP-' + Math.random().toString(36).substr(2, 5);
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
 
-    // Lógica de Tempo (Chronos)
     const hour = new Date().getHours();
     const isNight = hour < 6 || hour > 18;
-    
-    const globeImage = isNight 
-        ? '//unpkg.com/three-globe/example/img/earth-night.jpg' 
-        : '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
+    const globeImg = isNight ? '//unpkg.com/three-globe/example/img/earth-night.jpg' : '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
 
     let archive = new Map();
 
+    // Inicialização do Globo com detecção de largura inicial
     const world = Globe()(document.getElementById('globeViz'))
-        .globeImageUrl(globeImage)
+        .globeImageUrl(globeImg)
         .backgroundColor('#000000')
+        .width(window.innerWidth)
+        .height(window.innerHeight)
         .showAtmosphere(true)
         .atmosphereColor(isNight ? '#39ff14' : '#87CEEB')
         .htmlElement(d => {
@@ -76,13 +78,7 @@
             if (d.status === 'active') {
                 const hasFlag = d.country && d.country !== '??';
                 const flagHtml = hasFlag ? `<img src="https://flagcdn.com/w40/${d.country.toLowerCase()}.png" class="m-flag">` : '';
-                el.innerHTML = `
-                    <div class="m-tag">
-                        ${flagHtml}
-                        <span class="m-city">${d.city}</span>
-                    </div>
-                    <div class="dot-active"></div>
-                `;
+                el.innerHTML = `<div class="m-tag">${flagHtml}<span class="m-city">${d.city}</span></div><div class="dot-active"></div>`;
             } else {
                 el.innerHTML = `<div class="dot-ghost"></div>`;
             }
@@ -92,54 +88,36 @@
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
 
-    // --- NOVO MOTOR DE ESTRELAS ESTÁTICAS (Three.js) ---
-    const scene = world.scene();
-    
-    // Criação de 5000 estrelas estáticas e brilhantes
+    // Estrelas Estáticas
     const starsGeometry = new THREE.BufferGeometry();
-    const starsMaterial = new THREE.PointsMaterial({
-        color: 0xffffff,
-        size: 0.7,
-        sizeAttenuation: true, // Faz as estrelas parecerem reluzentes
-        transparent: true,
-        opacity: 0.9
-    });
-
     const starsVertices = [];
-    for (let i = 0; i < 5000; i++) {
-        // Posicionamento aleatório num raio grande (afastado do globo)
+    for (let i = 0; i < 6000; i++) {
         const x = THREE.MathUtils.randFloatSpread(2000);
         const y = THREE.MathUtils.randFloatSpread(2000);
         const z = THREE.MathUtils.randFloatSpread(2000);
-        
-        // Garante que não estão dentro do globo
-        if (Math.sqrt(x*x + y*y + z*z) > 200) {
-            starsVertices.push(x, y, z);
-        }
+        if (Math.sqrt(x*x + y*y + z*z) > 250) starsVertices.push(x, y, z);
     }
-
     starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
-    const starField = new THREE.Points(starsGeometry, starsMaterial);
-    
-    // Adiciona o campo de estrelas à cena, mas NÃO ao objeto do globo
-    scene.add(starField);
-    // ---------------------------------------------------
+    const starField = new THREE.Points(starsGeometry, new THREE.PointsMaterial({color: 0xffffff, size: 0.7, transparent: true, opacity: 0.8}));
+    world.scene().add(starField);
 
-    async function launchStellar() {
-        document.getElementById('time-text').innerText = isNight ? "MODE: NIGHT OPS (STELLAR)" : "MODE: DAYLIGHT SCAN";
-        
+    // MOTOR DE RESPONSIVIDADE
+    window.addEventListener('resize', () => {
+        world.width(window.innerWidth);
+        world.height(window.innerHeight);
+    });
+
+    async function start() {
+        document.getElementById('time-text').innerText = isNight ? "MODE: NIGHT OPS" : "MODE: DAYLIGHT SCAN";
         try {
             const res = await fetch('https://speed.cloudflare.com/meta');
             const data = await res.json();
-            
             const myGeo = {
-                lat: data.latitude || 0,
-                lng: data.longitude || 0,
+                lat: data.latitude || 0, lng: data.longitude || 0,
                 city: data.city ? data.city.toUpperCase() : "GLOBAL USER",
                 country: data.country ? data.country.toLowerCase() : "??",
                 status: 'active'
             };
-
             document.getElementById('status-text').innerText = myGeo.city;
 
             const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: RAU_ID });
@@ -148,39 +126,21 @@
             ably.connection.on('connected', () => {
                 channel.presence.enter(myGeo);
                 channel.presence.subscribe(msg => {
-                    const { action, clientId, data } = msg;
-                    if (['enter', 'present', 'update'].includes(action)) {
-                        archive.set(clientId, { ...data, status: 'active' });
-                    } else if (action === 'leave') {
-                        const prev = archive.get(clientId);
-                        if (prev) archive.set(clientId, { ...prev, status: 'ghost' });
+                    if (['enter', 'present', 'update'].includes(msg.action)) archive.set(msg.clientId, {...msg.data, status: 'active'});
+                    else if (msg.action === 'leave') {
+                        const p = archive.get(msg.clientId);
+                        if (p) archive.set(msg.clientId, {...p, status: 'ghost'});
                     }
-                    refresh();
-                });
-                channel.presence.get((err, members) => {
-                    if (!err) {
-                        members.forEach(m => archive.set(m.clientId, { ...m.data, status: 'active' }));
-                        refresh();
-                    }
+                    const nodes = Array.from(archive.values());
+                    document.getElementById('count').innerText = nodes.filter(n => n.status === 'active').length;
+                    world.htmlElementsData(nodes.filter(n => n.lat !== undefined));
                 });
             });
-
-            if (myGeo.lat !== 0) {
-                world.pointOfView({ lat: myGeo.lat, lng: myGeo.lng, altitude: 2 }, 1500);
-            }
-
-        } catch (e) {
-            document.getElementById('status-text').innerText = "GENERAL ACCESS";
-        }
+            world.pointOfView({ lat: myGeo.lat, lng: myGeo.lng, altitude: 2 }, 1500);
+        } catch (e) { document.getElementById('status-text').innerText = "GENERAL ACCESS"; }
     }
 
-    function refresh() {
-        const nodes = Array.from(archive.values());
-        document.getElementById('count').innerText = nodes.filter(n => n.status === 'active').length;
-        world.htmlElementsData(nodes.filter(n => n.lat !== undefined));
-    }
-
-    launchStellar();
+    start();
 </script>
 </body>
 </html>
