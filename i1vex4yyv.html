@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v165 - SILENT BYPASS</title>
+    <title>RAU RADAR v166 - OVERRIDE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -24,24 +24,23 @@
             white-space: nowrap; border: 1px solid #fff;
         }
         .d-rau { width: 14px; height: 14px; background: #fff; border-radius: 50%; margin-top: 5px; border: 2px solid #39ff14; animation: p 0.6s infinite alternate; }
-        @keyframes p { from { transform: scale(1); opacity: 1; } to { transform: scale(4.5); opacity: 0; } }
-        #log { font-family: monospace; font-size: 10px; color: #39ff14; margin-top: 10px; opacity: 0.7; }
+        @keyframes p { from { transform: scale(1); opacity: 1; } to { transform: scale(4); opacity: 0; } }
+        #diag { font-family: monospace; font-size: 10px; color: #39ff14; margin-top: 10px; border-top: 1px solid #39ff1444; padding-top: 5px; }
     </style>
 </head>
 <body>
 
 <div class="hud">
-    <div style="font-size: 9px; letter-spacing: 5px; opacity: 0.7;">RAU SYSTEM v165</div>
-    <div id="count" class="count">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A ESTABILIZAR ROTA...</div>
-    <div id="log">IDENTIFICANDO NÓ...</div>
+    <div style="font-size: 9px; letter-spacing: 5px; opacity: 0.7;">RAU SYSTEM v166</div>
+    <div id="count" class="count">1</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A ESTABILIZAR NÓ FÍSICO...</div>
+    <div id="diag">LINK: AGUARDANDO | IP: --</div>
 </div>
 
 <div id="globeViz"></div>
 
 <script>
-    // Geramos um ID que se mantém durante a sessão para evitar duplicados
-    const RAU_ID = 'RAU-NODE-' + Math.random().toString(36).substr(2, 5);
+    const RAU_UID = 'RAU-' + Math.random().toString(36).substr(2, 5);
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
 
     const world = Globe()(document.getElementById('globeViz'))
@@ -56,36 +55,40 @@
             return el;
         });
 
-    async function launch() {
+    async function start() {
         try {
-            // Usamos ipinfo para maior estabilidade de rota contra Mechelen
-            const res = await fetch('https://ipinfo.io/json?token=7563065675409a');
-            const data = await res.json();
-            const [lat, lng] = data.loc.split(',');
-
+            // Motor alternativo para evitar bloqueios de sincronização
+            const response = await fetch('https://ipapi.co/json/');
+            const data = await response.json();
+            
             const geo = {
-                lat: parseFloat(lat),
-                lng: parseFloat(lng),
+                lat: data.latitude,
+                lng: data.longitude,
                 city: (data.city || "ORIGIN").toUpperCase(),
-                clientId: RAU_ID
+                clientId: RAU_UID
             };
 
-            document.getElementById('log').innerText = `ISP: ${data.org.split(' ')[0]} | IP: ${data.ip}`;
+            document.getElementById('diag').innerText = `IP: ${data.ip} | ASN: ${data.asn}`;
+            document.getElementById('status').innerText = `LOCALIZADO: ${geo.city}`;
+            
+            // Renderização imediata para evitar erro visual
+            world.htmlElementsData([geo]);
+            world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.6 }, 2000);
 
-            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: RAU_ID });
+            // Sincronização em segundo plano (Ably)
+            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: RAU_UID });
             const channel = ably.channels.get('rau-live-radar');
 
             ably.connection.on('connected', () => {
-                document.getElementById('status').innerText = `RADAR FIXADO: ${geo.city}`;
+                document.getElementById('diag').innerText += " | ABLY: OK";
                 channel.presence.enter(geo);
 
                 const sync = () => {
                     channel.presence.get((err, members) => {
                         if (!err) {
-                            // MECANISMO ANTI-FANTASMA: Filtra rigorosamente por ClientId
-                            const activeNodes = Array.from(new Map(members.map(m => [m.clientId, m.data])).values());
-                            document.getElementById('count').innerText = activeNodes.length;
-                            world.htmlElementsData(activeNodes);
+                            const nodes = Array.from(new Map(members.map(m => [m.clientId, m.data])).values());
+                            document.getElementById('count').innerText = nodes.length;
+                            world.htmlElementsData(nodes);
                         }
                     });
                 };
@@ -93,15 +96,14 @@
                 sync();
             });
 
-            world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.6 }, 2000);
         } catch (e) {
-            document.getElementById('status').innerText = "ERRO NA SINCRONIZAÇÃO";
+            document.getElementById('status').innerText = "MODO OFFLINE ATIVO";
         }
     }
 
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
-    launch();
+    start();
 </script>
 </body>
 </html>
