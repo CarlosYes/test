@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v88 - STRIKE</title>
+    <title>RAU RADAR v91 - TARGET</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -31,9 +31,9 @@
 <body>
 
 <div class="hud">
-    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v88</div>
+    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v91</div>
     <div id="count" class="count">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A SINCRONIZAR ROTA...</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">SINCRONIZANDO LOCALIZAÇÃO PRECISA...</div>
 </div>
 
 <div id="globeViz"></div>
@@ -55,51 +55,54 @@
             return el;
         });
 
-    // MOTOR DE PRECISÃO (JSONP para evitar bloqueios e ler Mechelen)
-    function getStrikeLoc() {
-        const script = document.createElement('script');
-        script.src = 'https://ip-api.com/json/?callback=processLoc';
-        document.body.appendChild(script);
+    // MOTOR DE PRECISÃO GEOJS (Alternativa ao Cloudflare/Ably IP)
+    async function getPreciseTarget() {
+        try {
+            // GeoJS é excelente para detectar a cidade real via infraestrutura de rede
+            const response = await fetch('https://get.geojs.io/v1/ip/geo.json');
+            const d = await response.json();
+            
+            if (d.latitude) {
+                const geo = {
+                    lat: parseFloat(d.latitude),
+                    lng: parseFloat(d.longitude),
+                    city: (d.city || "DESCONHECIDO").toUpperCase(),
+                    country: d.country_code.toLowerCase()
+                };
+                startRealtime(geo);
+            }
+        } catch (e) {
+            document.getElementById('status').innerText = "ERRO DE RASTREIO";
+        }
     }
 
-    window.processLoc = function(d) {
-        if (d.status === 'success') {
-            const geo = {
-                lat: d.lat,
-                lng: d.lon,
-                city: d.city.toUpperCase(),
-                country: d.countryCode.toLowerCase()
+    function startRealtime(geo) {
+        const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
+        const channel = ably.channels.get('rau-live-radar');
+
+        ably.connection.on('connected', () => {
+            document.getElementById('status').innerText = `LOCALIZADO: ${geo.city}`;
+            channel.presence.enter(geo);
+
+            const sync = () => {
+                channel.presence.get((err, members) => {
+                    if (!err) {
+                        const nodes = members.map(m => m.data).filter(x => x && x.lat);
+                        document.getElementById('count').innerText = nodes.length;
+                        world.htmlElementsData(nodes);
+                    }
+                });
             };
+            channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
+            sync();
+        });
 
-            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
-            const channel = ably.channels.get('rau-live-radar');
-
-            ably.connection.on('connected', () => {
-                document.getElementById('status').innerText = `FIXADO: ${geo.city}`;
-                channel.presence.enter(geo);
-
-                const update = () => {
-                    channel.presence.get((err, members) => {
-                        if (!err) {
-                            const nodes = members.map(m => m.data).filter(x => x && x.lat);
-                            document.getElementById('count').innerText = nodes.length;
-                            world.htmlElementsData(nodes);
-                        }
-                    });
-                };
-                channel.presence.subscribe(['enter', 'leave', 'present', 'update'], update);
-                update();
-            });
-
-            world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.8 }, 2000);
-        } else {
-            document.getElementById('status').innerText = "ERRO NA BASE DE DADOS";
-        }
-    };
+        world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.8 }, 2000);
+    }
 
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
-    getStrikeLoc();
+    getPreciseTarget();
 </script>
 </body>
 </html>
