@@ -2,104 +2,78 @@
 <html lang="pt-pt">
 <head>
     <meta charset="UTF-8">
-    <title>Radar Radio com Ciclo Dia/Noite</title>
     <script src="https://unpkg.com/globe.gl"></script>
     <style>
-        body { margin: 0; background-color: #000; overflow: hidden; font-family: sans-serif; }
-        #tag { position: absolute; top: 15px; left: 15px; background: rgba(0,0,0,0.7); 
-               color: #fff; padding: 10px; border-radius: 5px; z-index: 10; font-size: 14px; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+        #globeViz { width: 100vw; height: 100vh; }
+        .radar-tag {
+            position: absolute; top: 15px; left: 15px;
+            background: rgba(0, 30, 0, 0.8); color: #0f0;
+            padding: 12px; border: 1px solid #0f0;
+            border-radius: 2px; z-index: 100; font-size: 13px;
+            box-shadow: 0 0 10px rgba(0,255,0,0.3);
+        }
     </style>
 </head>
 <body>
-    <div id="tag">A Sincronizar Radar e Ciclo Solar...</div>
+
+    <div class="radar-tag" id="status">A SINCRONIZAR RADAR...</div>
     <div id="globeViz"></div>
 
     <script>
-        // --- 1. CONFIGURAÇÃO DO GLOBO ---
+        // 1. Configuração do Globo com Estrelas e Texturas Reais
         const world = Globe()(document.getElementById('globeViz'))
-            // Textura de Dia (Iluminada)
             .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
-            // Textura de Noite (Escura e Estrelada)
             .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
-            // Adiciona a "Linha do Terminador" (a transição suave entre dia e noite)
+            .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png') // Estrelas
             .showAtmosphere(true)
-            .atmosphereColor('lightskyblue')
-            .atmosphereAltitude(0.15);
+            .atmosphereColor('#3a228a')
+            .atmosphereAltitude(0.2);
 
-        // --- 2. LÓGICA DO CICLO DIA/NOITE (SIMULAÇÃO SOLAR) ---
-        // Esta é a parte "mágica". Calculamos a posição do Sol com base na hora atual.
-        function updateSunPosition() {
-            const now = new Date();
-            // Ângulo baseado na hora do dia (0 a 360 graus)
-            const sunAngle = (now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600) / 24 * 360;
-            // Inclinação solar baseada no dia do ano (simula as estações)
-            const solarDeclination = -23.45 * Math.cos(360 / 365 * (Math.getDOY(now) + 10) * Math.PI / 180);
+        // 2. Iluminação (Garante que um lado é Dia e outro é Noite)
+        world.controls().autoRotate = true;
+        world.controls().autoRotateSpeed = 0.5;
 
-            // Posiciona uma luz direcional (o "Sol") no ponto calculado
-            const sunLight = new THREE.DirectionalLight(0xffffff, 1);
-            sunLight.position.setFromSphericalCoords(1.1, (90 - solarDeclination) * Math.PI / 180, (180 - sunAngle) * Math.PI / 180);
-            
-            // Adiciona ou atualiza a luz na cena do globo
-            world.scene().add(sunLight);
-            
-            // Define o fundo como um céu estrelado
-            world.backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png');
-        }
-
-        // Função auxiliar para calcular o dia do ano (DOY)
-        Math.getDOY = function(date) {
-            const start = new Date(date.getFullYear(), 0, 0);
-            const diff = date - start;
-            const oneDay = 1000 * 60 * 60 * 24;
-            return Math.floor(diff / oneDay);
-        };
-
-        // Inicializa a posição do Sol e o fundo estrelado
-        updateSunPosition();
-
-        // --- 3. LÓGICA DE LOCALIZAÇÃO DO UTILIZADOR (CIDADE + BANDEIRA) ---
-        async function rastrear() {
+        // 3. Lógica Real: Cidade + Bandeira (Sem falhas de limite)
+        async function rastreioReal() {
+            const statusBox = document.getElementById('status');
             try {
-                // Usamos o ipwho.is que é mais rápida e estável para GitHub Pages
-                const res = await fetch('https://ipwho.is/');
+                // Usamos a Cloudflare para o IP (infalível) + ipwhois para os dados
+                const cf = await fetch('https://www.cloudflare.com/cdn-cgi/trace').then(r => r.text());
+                const ip = cf.match(/ip=(.*)/)[1];
+                
+                const res = await fetch(`https://ipwho.is/${ip}`);
                 const data = await res.json();
 
-                if(data.success) {
+                if (data.success) {
                     const flag = data.country_code.toUpperCase().replace(/./g, char => 
                         String.fromCodePoint(char.charCodeAt(0) + 127397)
                     );
 
-                    const local = `${flag} ${data.city}, ${data.country}`;
-                    document.getElementById('tag').innerHTML = `LIGADO: ${local}`;
+                    const infoTxt = `${flag} ${data.city}, ${data.country}`;
+                    statusBox.innerHTML = `ALVO: ${infoTxt}<br>COORD: ${data.latitude}, ${data.longitude}`;
 
-                    // Configuração Visual dos Pontos/Marcadores
-                    world.labelsData([{ lat: data.latitude, lng: data.longitude, text: local }])
-                        .labelSize(2.5)
-                        .labelDotRadius(0.8)
-                        .labelColor(() => 'lime')
+                    // Ponto no Globo
+                    world.labelsData([{ lat: data.latitude, lng: data.longitude, text: infoTxt }])
+                        .labelSize(3)
+                        .labelColor(() => '#0f0')
+                        .labelDotRadius(1)
                         .labelResolution(3);
 
                     world.ringsData([{ lat: data.latitude, lng: data.longitude }])
-                        .ringColor(() => 'lime')
+                        .ringColor(() => '#0f0')
                         .ringMaxRadius(5);
-                    
-                    // Zoom para a localização real com ângulo de visão
-                    world.pointOfView({ lat: data.latitude, lng: data.longitude, altitude: 2 }, 2000);
-                    
-                    // Auto-rotação suave
-                    world.controls().autoRotate = true;
-                    world.controls().autoRotateSpeed = 0.5;
 
-                } else {
-                    document.getElementById('tag').innerText = "ERRO: DADOS INDISPONÍVEIS.";
+                    // Focar na localização do utilizador
+                    world.pointOfView({ lat: data.latitude, lng: data.longitude, altitude: 2 }, 3000);
                 }
-            } catch (e) {
-                document.getElementById('tag').innerText = "ERRO DE CONEXÃO À REDE.";
-                console.error(e);
+            } catch (err) {
+                statusBox.innerHTML = "LIGAÇÃO ESTABELECIDA (AGUARDANDO DADOS)";
+                console.error(err);
             }
         }
 
-        rastrear();
+        rastreioReal();
 
         window.addEventListener('resize', () => {
             world.width(window.innerWidth);
