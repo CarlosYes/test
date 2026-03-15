@@ -12,23 +12,18 @@
             padding: 18px; border: 2px solid #00ff00;
             z-index: 1000; font-size: 20px; font-weight: bold;
             box-shadow: 0 0 20px #00ff00; border-radius: 8px;
-            line-height: 1.5;
         }
     </style>
 </head>
 <body>
-    <div id="radar-box">SISTEMA: A LOCALIZAR...</div>
+    <div id="radar-box">SISTEMA: A SOLICITAR GPS...</div>
     <div id="globeViz"></div>
 
     <script>
-        // 1. Lógica de Dia/Noite (Baseada na tua hora atual)
         const hora = new Date().getHours();
         const eDia = hora >= 7 && hora < 19;
-        
-        const corFundo = eDia ? '#87CEEB' : '#000000'; // Azul durante o dia, Preto à noite
-        const imgTerra = eDia 
-            ? 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg' 
-            : 'https://unpkg.com/three-globe/example/img/earth-night.jpg';
+        const corFundo = eDia ? '#87CEEB' : '#000000';
+        const imgTerra = eDia ? 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg' : 'https://unpkg.com/three-globe/example/img/earth-night.jpg';
 
         document.body.style.background = corFundo;
 
@@ -36,43 +31,47 @@
             .globeImageUrl(imgTerra)
             .backgroundColor(corFundo)
             .showAtmosphere(true)
-            .atmosphereColor('#00ff00')
-            .atmosphereAltitude(0.15);
+            .atmosphereColor('#00ff00');
 
         world.controls().autoRotate = true;
-        world.controls().autoRotateSpeed = 0.6;
 
-        async function iniciar() {
-            try {
-                // Chamada ao teu Worker que já está a funcionar
-                const response = await fetch('https://globorau.carlos2022yes.workers.dev/');
-                const data = await response.json();
-                
-                // Exibição do Nome da Cidade e Bandeira como pedido
-                const infoVisitante = `${data.flag} ${data.city.toUpperCase()}, ${data.country}`;
-                
-                document.getElementById('radar-box').innerHTML = `
-                    SISTEMA RADAR ATIVO<br>
-                    ------------------<br>
-                    LOCAL: ${infoVisitante}<br>
-                    MODO: ${eDia ? 'DIURNO' : 'NOTURNO'}
-                `;
-
-                const marker = [{ lat: data.latitude, lng: data.longitude }];
-                
-                world.ringsData(marker)
-                    .ringColor(() => '#00ff00')
-                    .ringMaxRadius(7)
-                    .ringPropagationSpeed(3);
-
-                world.pointOfView({ lat: data.latitude, lng: data.longitude, altitude: 1.8 }, 2500);
-
-            } catch (err) {
-                document.getElementById('radar-box').innerHTML = "ERRO: FALHA NA SINCRONIZAÇÃO";
+        async function localizar() {
+            // Tentar GPS do Navegador para precisão real
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(async (pos) => {
+                    // Se o utilizador aceitar o GPS:
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+                    
+                    // Usamos o Worker apenas para traduzir as coordenadas em Nome de Cidade/Bandeira
+                    try {
+                        const res = await fetch(`https://globorau.carlos2022yes.workers.dev/`);
+                        const data = await res.json();
+                        atualizarGlobo(lat, lng, data.city, data.flag);
+                    } catch {
+                        atualizarGlobo(lat, lng, "Localização Real", "📍");
+                    }
+                }, async () => {
+                    // Se o utilizador recusar o GPS, volta ao IP (Mechelen)
+                    const res = await fetch('https://globorau.carlos2022yes.workers.dev/');
+                    const data = await res.json();
+                    atualizarGlobo(data.latitude, data.longitude, data.city, data.flag);
+                });
             }
         }
 
-        iniciar();
+        function atualizarGlobo(lat, lng, cidade, bandeira) {
+            document.getElementById('radar-box').innerHTML = `
+                SISTEMA RADAR ATIVO<br>
+                ------------------<br>
+                LOCAL: ${bandeira} ${cidade.toUpperCase()}<br>
+                MODO: ${eDia ? 'DIURNO' : 'NOTURNO'}
+            `;
+            world.ringsData([{ lat, lng }]).ringColor(() => '#00ff00');
+            world.pointOfView({ lat, lng, altitude: 1.8 }, 2000);
+        }
+
+        localizar();
     </script>
 </body>
 </html>
