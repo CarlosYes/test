@@ -9,14 +9,14 @@
         #radar-box {
             position: absolute; top: 20px; left: 20px;
             background: rgba(0, 30, 0, 0.9); color: #00ff00;
-            padding: 18px; border: 2px solid #00ff00;
-            z-index: 1000; font-size: 20px; font-weight: bold;
-            box-shadow: 0 0 20px #00ff00; border-radius: 8px;
+            padding: 15px; border: 2px solid #00ff00;
+            z-index: 1000; font-size: 18px; font-weight: bold;
+            box-shadow: 0 0 15px #00ff00; border-radius: 5px;
         }
     </style>
 </head>
 <body>
-    <div id="radar-box">SISTEMA: A SOLICITAR GPS...</div>
+    <div id="radar-box">SISTEMA: A LOCALIZAR...</div>
     <div id="globeViz"></div>
 
     <script>
@@ -34,44 +34,49 @@
             .atmosphereColor('#00ff00');
 
         world.controls().autoRotate = true;
+        world.controls().autoRotateSpeed = 0.5;
 
-        async function localizar() {
-            // Tentar GPS do Navegador para precisão real
+        async function iniciar() {
+            // 1. Obter dados do Worker (Bandeira e Cidade do IP)
+            let workerData = { city: "Localização", flag: "📍", lat: 0, lng: 0 };
+            try {
+                const res = await fetch('https://globorau.carlos2022yes.workers.dev/');
+                workerData = await res.json();
+            } catch (e) { console.error("Erro worker"); }
+
+            // 2. Tentar GPS para precisão real
             if ("geolocation" in navigator) {
-                navigator.geolocation.getCurrentPosition(async (pos) => {
-                    // Se o utilizador aceitar o GPS:
-                    const lat = pos.coords.latitude;
-                    const lng = pos.coords.longitude;
-                    
-                    // Usamos o Worker apenas para traduzir as coordenadas em Nome de Cidade/Bandeira
-                    try {
-                        const res = await fetch(`https://globorau.carlos2022yes.workers.dev/`);
-                        const data = await res.json();
-                        atualizarGlobo(lat, lng, data.city, data.flag);
-                    } catch {
-                        atualizarGlobo(lat, lng, "Localização Real", "📍");
-                    }
-                }, async () => {
-                    // Se o utilizador recusar o GPS, volta ao IP (Mechelen)
-                    const res = await fetch('https://globorau.carlos2022yes.workers.dev/');
-                    const data = await res.json();
-                    atualizarGlobo(data.latitude, data.longitude, data.city, data.flag);
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    renderizar(pos.coords.latitude, pos.coords.longitude, workerData.city, workerData.flag);
+                }, () => {
+                    // Se recusar GPS, usa os dados do Worker
+                    renderizar(workerData.latitude, workerData.longitude, workerData.city, workerData.flag);
                 });
             }
         }
 
-        function atualizarGlobo(lat, lng, cidade, bandeira) {
-            document.getElementById('radar-box').innerHTML = `
-                SISTEMA RADAR ATIVO<br>
-                ------------------<br>
-                LOCAL: ${bandeira} ${cidade.toUpperCase()}<br>
-                MODO: ${eDia ? 'DIURNO' : 'NOTURNO'}
-            `;
-            world.ringsData([{ lat, lng }]).ringColor(() => '#00ff00');
-            world.pointOfView({ lat, lng, altitude: 1.8 }, 2000);
+        function renderizar(lat, lng, cidade, bandeira) {
+            const labelTexto = `${bandeira} ${cidade.toUpperCase()}`;
+            
+            document.getElementById('radar-box').innerHTML = `LOCALIZADO: ${labelTexto}`;
+
+            // Pontinho verde e texto no globo
+            world.labelsData([{ lat, lng, text: labelTexto }])
+                .labelColor(() => '#00ff00')
+                .labelSize(2)
+                .labelDotRadius(0.5) // O "pontinho verde" que pediste
+                .labelResolution(2);
+
+            // Anel pulsante verde
+            world.ringsData([{ lat, lng }])
+                .ringColor(() => '#00ff00')
+                .ringMaxRadius(5)
+                .ringPropagationSpeed(2);
+
+            world.pointOfView({ lat, lng, altitude: 2 }, 2000);
         }
 
-        localizar();
+        iniciar();
     </script>
 </body>
 </html>
