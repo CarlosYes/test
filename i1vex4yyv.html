@@ -3,47 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v193 - GLOBAL MESH</title>
+    <title>RAU RADAR v195 - UNIVERSAL</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: 'Arial', sans-serif; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; }
         #globeViz { width: 100vw; height: 100vh; position: absolute; }
         
-        /* HUD Superior Esquerdo */
+        /* HUD à Esquerda Adaptável e Geral */
         .p-hud {
-            position: absolute; top: 20px; left: 20px;
-            background: rgba(0,0,0,0.9); border-left: 3px solid #39ff14;
-            padding: 10px 18px; color: #fff; z-index: 1000;
-            border-radius: 0 4px 4px 0; box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+            position: absolute; top: 30px; left: 20px;
+            background: rgba(0,0,0,0.85); border-left: 2px solid #39ff14;
+            padding: 12px 18px; color: #fff; z-index: 1000;
+            border-radius: 0 4px 4px 0; backdrop-filter: blur(10px);
         }
-        .p-city { font-size: 14px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; }
-        .p-stats { margin-top: 5px; display: flex; gap: 12px; font-family: monospace; font-size: 11px; }
-        .stat-on { color: #39ff14; }
-        .stat-off { color: #ff3131; }
+        .p-city { font-size: 14px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; }
+        .p-live { color: #39ff14; font-size: 10px; font-family: monospace; margin-top: 5px; }
 
-        /* Marcadores Globais */
+        /* Marcadores no Globo */
         .m-rau { display: flex; flex-direction: column; align-items: center; pointer-events: none; }
 
-        /* Etiqueta para TODOS os Online */
         .m-tag { 
             display: flex; align-items: center; gap: 6px; 
-            background: rgba(0, 0, 0, 0.9); padding: 3px 7px; 
-            border: 1px solid #39ff14; border-radius: 3px; margin-bottom: 3px;
-            box-shadow: 0 0 10px #000;
+            background: rgba(0, 0, 0, 0.9); padding: 4px 8px; 
+            border: 1px solid rgba(57, 255, 20, 0.5); border-radius: 2px; margin-bottom: 4px;
         }
-        .m-flag { width: 16px; height: 11px; object-fit: cover; }
-        .m-city { color: #fff; font-size: 9px; font-weight: 900; white-space: nowrap; }
+        .m-flag { width: 16px; height: auto; display: block; }
+        .m-city { color: #fff; font-size: 9px; font-weight: bold; white-space: nowrap; text-transform: uppercase; }
         
         .dot-active { 
             width: 6px; height: 6px; background: #39ff14; border-radius: 50%; 
-            box-shadow: 0 0 10px #39ff14, 0 0 3px #fff; border: 1px solid #fff;
+            box-shadow: 0 0 10px #39ff14; border: 1px solid #fff;
         }
-
         .dot-ghost { 
-            width: 4px; height: 4px; background: #660000; border-radius: 50%; 
-            box-shadow: 0 0 5px #440000; opacity: 0.8;
+            width: 4px; height: 4px; background: #440000; border-radius: 50%; 
+            box-shadow: 0 0 5px #220000; opacity: 0.6;
         }
     </style>
 </head>
@@ -52,15 +47,12 @@
 <div id="globeViz"></div>
 
 <div class="p-hud">
-    <div id="my-loc" class="p-city">SCANNING...</div>
-    <div class="p-stats">
-        <div class="stat-on">LIVE: <span id="count">0</span></div>
-        <div class="stat-off">GHOSTS: <span id="ghost-count">0</span></div>
-    </div>
+    <div id="status-text" class="p-city">SYSTEM SCAN...</div>
+    <div class="p-live">LIVE NODES: <span id="count">0</span></div>
 </div>
 
 <script>
-    const RAU_ID = 'RAU-NET-' + Math.random().toString(36).substr(2, 5);
+    const RAU_ID = 'GEN-' + Math.random().toString(36).substr(2, 5);
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
 
     let archive = new Map();
@@ -75,10 +67,13 @@
             el.className = 'm-rau';
             
             if (d.status === 'active') {
-                const cCode = (d.country || 'be').toLowerCase();
+                // Só mostra bandeira se o código do país for válido e não for o padrão "geral"
+                const hasFlag = d.country && d.country !== '??';
+                const flagHtml = hasFlag ? `<img src="https://flagcdn.com/w40/${d.country.toLowerCase()}.png" class="m-flag">` : '';
+                
                 el.innerHTML = `
                     <div class="m-tag">
-                        <img src="https://flagcdn.com/w40/${cCode}.png" class="m-flag">
+                        ${flagHtml}
                         <span class="m-city">${d.city}</span>
                     </div>
                     <div class="dot-active"></div>
@@ -92,26 +87,27 @@
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
 
-    async function startSystem() {
+    async function launchUniversal() {
         try {
             const res = await fetch('https://speed.cloudflare.com/meta');
             const data = await res.json();
             
-            const myData = {
-                lat: data.latitude,
-                lng: data.longitude,
-                city: (data.city || "NODE").toUpperCase(),
-                country: (data.country || "BE").toLowerCase(),
+            // REMOVIDO O FALLBACK "BE" OU "NODE". AGORA É GERAL.
+            const myGeo = {
+                lat: data.latitude || 0,
+                lng: data.longitude || 0,
+                city: data.city ? data.city.toUpperCase() : "GLOBAL USER",
+                country: data.country ? data.country.toLowerCase() : "??",
                 status: 'active'
             };
 
-            document.getElementById('my-loc').innerText = myData.city;
+            document.getElementById('status-text').innerText = myGeo.city;
 
             const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: RAU_ID });
             const channel = ably.channels.get('rau-live-radar');
 
             ably.connection.on('connected', () => {
-                channel.presence.enter(myData);
+                channel.presence.enter(myGeo);
 
                 channel.presence.subscribe(msg => {
                     const { action, clientId, data } = msg;
@@ -121,32 +117,33 @@
                         const prev = archive.get(clientId);
                         if (prev) archive.set(clientId, { ...prev, status: 'ghost' });
                     }
-                    syncUI();
+                    refresh();
                 });
 
                 channel.presence.get((err, members) => {
                     if (!err) {
                         members.forEach(m => archive.set(m.clientId, { ...m.data, status: 'active' }));
-                        syncUI();
+                        refresh();
                     }
                 });
             });
 
-            world.pointOfView({ lat: myData.lat, lng: myData.lng, altitude: 2 }, 1500);
+            if (myGeo.lat !== 0) {
+                world.pointOfView({ lat: myGeo.lat, lng: myGeo.lng, altitude: 2 }, 1500);
+            }
 
         } catch (e) {
-            document.getElementById('my-loc').innerText = "LINK FAILED";
+            document.getElementById('status-text').innerText = "GENERAL ACCESS";
         }
     }
 
-    function syncUI() {
-        const data = Array.from(archive.values());
-        document.getElementById('count').innerText = data.filter(n => n.status === 'active').length;
-        document.getElementById('ghost-count').innerText = data.filter(n => n.status === 'ghost').length;
-        world.htmlElementsData(data.filter(n => n.lat));
+    function refresh() {
+        const nodes = Array.from(archive.values());
+        document.getElementById('count').innerText = nodes.filter(n => n.status === 'active').length;
+        world.htmlElementsData(nodes.filter(n => n.lat !== undefined));
     }
 
-    startSystem();
+    launchUniversal();
 </script>
 </body>
 </html>
