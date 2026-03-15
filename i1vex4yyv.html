@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v72 - LEGION</title>
+    <title>RAU RADAR v74 - IRONCLAD</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -11,17 +11,17 @@
         body { margin: 0; overflow: hidden; font-family: 'Arial Black', sans-serif; background: #000; }
         #globeViz { width: 100vw; height: 100vh; position: absolute; }
         
-        /* HUD v72 - DESIGN MILITAR */
+        /* HUD v74 */
         .hud {
             position: absolute; top: 25px; left: 25px; z-index: 1000;
-            background: rgba(0, 0, 0, 0.9); border: 2px solid #39ff14;
+            background: rgba(0, 0, 0, 0.95); border: 2px solid #39ff14;
             padding: 20px; color: #39ff14; pointer-events: none;
-            box-shadow: 0 0 30px rgba(57, 255, 20, 0.3);
+            box-shadow: 0 0 30px rgba(57, 255, 20, 0.5);
         }
-        .v-tag { font-size: 10px; letter-spacing: 4px; color: #39ff14; margin-bottom: 5px; }
+        .v-tag { font-size: 10px; letter-spacing: 5px; color: #39ff14; margin-bottom: 5px; }
         .count-big { font-size: 90px; font-weight: 900; color: #fff; line-height: 0.8; letter-spacing: -5px; }
         
-        /* ETIQUETA VERDE - CONFIGURAÇÃO BLINDADA */
+        /* ETIQUETA VERDE - BANDEIRA + CIDADE */
         .m-rau { display: flex; flex-direction: column; align-items: center; }
         .l-rau {
             background: #39ff14; color: #000; padding: 6px 14px; 
@@ -30,27 +30,27 @@
         }
         .l-rau img { width: 22px; height: 15px; object-fit: cover; border: 1px solid #000; }
         
-        /* PONTO DE IMPACTO PULSANTE */
+        /* PONTO DE IMPACTO */
         .d-rau { 
             width: 14px; height: 14px; background: #fff; border-radius: 50%; 
             margin-top: 6px; border: 3px solid #39ff14; 
-            animation: pulse-v72 1.2s infinite ease-out; 
+            animation: pulse-v74 1.2s infinite ease-out; 
         }
-        @keyframes pulse-v72 { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(4); opacity: 0; } }
+        @keyframes pulse-v74 { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(4); opacity: 0; } }
     </style>
 </head>
 <body>
 
 <div class="hud">
-    <div class="v-tag">RAU SYSTEM v72 [LEGION]</div>
+    <div class="v-tag">RAU SYSTEM v74 [IRONCLAD]</div>
     <div id="user-count-hud" class="count-big">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace; border-top: 1px solid rgba(57, 255, 20, 0.3); padding-top: 8px;">A ESTABELECER LIGAÇÃO...</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace; border-top: 1px solid #39ff1466; padding-top: 8px;">A LER REDE...</div>
 </div>
 
 <div id="globeViz"></div>
 
 <script>
-    // 1. AMBIENTE (Noite às 20:44)
+    // 1. AMBIENTE DIA/NOITE (Pela hora do sistema)
     const hora = new Date().getHours();
     const eDia = hora >= 7 && hora < 19;
     const corFundo = eDia ? '#87CEEB' : '#000000';
@@ -58,7 +58,7 @@
     document.body.style.background = corFundo;
 
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
-    const SESSION_ID = 'RAU-V72-' + Math.random().toString(36).substr(2, 5);
+    const SESSION_ID = 'RAU-V74-' + Math.random().toString(36).substr(2, 5);
 
     const world = Globe()(document.getElementById('globeViz'))
         .globeImageUrl(imgTerra)
@@ -69,53 +69,45 @@
             const el = document.createElement('div');
             el.className = 'm-rau';
             const flagUrl = `https://flagcdn.com/w40/${d.countryCode.toLowerCase()}.png`;
-            el.innerHTML = `
-                <div class="l-rau">
-                    <img src="${flagUrl}">
-                    <span>${d.city.toUpperCase()}</span>
-                </div>
-                <div class="d-rau"></div>`;
+            el.innerHTML = `<div class="l-rau"><img src="${flagUrl}"><span>${d.city.toUpperCase()}</span></div><div class="d-rau"></div>`;
             return el;
         });
 
-    // 2. MOTOR DE LOCALIZAÇÃO v72 (JSONP - SEM BLOQUEIOS)
-    window.onload = function() {
-        const script = document.createElement('script');
-        script.src = 'https://ip-api.com/json/?callback=motorV72';
-        document.body.appendChild(script);
-    };
+    // 2. MOTOR v74 - INJEÇÃO IMEDIATA (JSONP)
+    function executeScan() {
+        const s = document.createElement('script');
+        s.src = 'https://ip-api.com/json/?callback=engineV74&t=' + Date.now();
+        document.body.appendChild(s);
+    }
 
-    window.motorV72 = function(d) {
+    window.engineV74 = function(d) {
         if (d.status === 'success') {
             const myLoc = { lat: d.lat, lng: d.lon, city: d.city, countryCode: d.countryCode };
-            
             const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
-            const channel = ably.channels.get('rau-v72-live');
+            const channel = ably.channels.get('rau-v74-live');
 
             ably.connection.on('connected', () => {
-                document.getElementById('status').innerText = `FIX: ${d.city.toUpperCase()} [ONLINE]`;
+                document.getElementById('status').innerText = `RADAR FIXO: ${d.city.toUpperCase()}`;
                 channel.presence.enter(myLoc);
 
-                const atualizarRede = () => {
+                const sync = () => {
                     channel.presence.get((err, members) => {
                         if (!err) {
-                            const conexoes = members.map(m => m.data).filter(x => x && x.lat);
-                            document.getElementById('user-count-hud').innerText = conexoes.length;
-                            world.htmlElementsData(conexoes);
+                            const users = members.map(m => m.data).filter(x => x && x.lat);
+                            document.getElementById('user-count-hud').innerText = users.length;
+                            world.htmlElementsData(users);
                         }
                     });
                 };
-
-                channel.presence.subscribe(['enter', 'leave', 'present', 'update'], atualizarRede);
-                atualizarRede();
+                channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
+                sync();
             });
-
             world.pointOfView({ lat: d.lat, lng: d.lon, altitude: 2 }, 2000);
-        } else {
-            document.getElementById('status').innerText = "ERRO: REINICIE O SCANNER";
         }
     };
 
+    // DISPARA O MOTOR LOGO
+    executeScan();
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
 </script>
