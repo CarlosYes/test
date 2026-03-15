@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v86 - RESET</title>
+    <title>RAU RADAR v88 - STRIKE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -31,9 +31,9 @@
 <body>
 
 <div class="hud">
-    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v86</div>
+    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v88</div>
     <div id="count" class="count">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A RASTREAR...</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A SINCRONIZAR ROTA...</div>
 </div>
 
 <div id="globeViz"></div>
@@ -42,7 +42,6 @@
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
     const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 7);
 
-    // Inicializa o Globo imediatamente
     const world = Globe()(document.getElementById('globeViz'))
         .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
         .backgroundColor('#000000')
@@ -56,22 +55,22 @@
             return el;
         });
 
-    async function init() {
-        try {
-            // Método direto e seguro via ipapi.co (padrão HTTPS)
-            const res = await fetch('https://ipapi.co/json/');
-            const d = await res.json();
+    // MOTOR DE PRECISÃO (JSONP para evitar bloqueios e ler Mechelen)
+    function getStrikeLoc() {
+        const script = document.createElement('script');
+        script.src = 'https://ip-api.com/json/?callback=processLoc';
+        document.body.appendChild(script);
+    }
 
-            if (!d.latitude) throw new Error("Falha na localização");
-
+    window.processLoc = function(d) {
+        if (d.status === 'success') {
             const geo = {
-                lat: d.latitude,
-                lng: d.longitude,
+                lat: d.lat,
+                lng: d.lon,
                 city: d.city.toUpperCase(),
-                country: d.country_code.toLowerCase()
+                country: d.countryCode.toLowerCase()
             };
 
-            // Configuração Ably
             const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
             const channel = ably.channels.get('rau-live-radar');
 
@@ -92,18 +91,15 @@
                 update();
             });
 
-            // Foca na tua cidade real
             world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.8 }, 2000);
-
-        } catch (e) {
-            document.getElementById('status').innerText = "ERRO: VERIFIQUE O BLOQUEADOR DE ANÚNCIOS";
-            console.error(e);
+        } else {
+            document.getElementById('status').innerText = "ERRO NA BASE DE DADOS";
         }
-    }
+    };
 
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
-    init();
+    getStrikeLoc();
 </script>
 </body>
 </html>
