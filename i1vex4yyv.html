@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v117 - FINAL RESOLUTION</title>
+    <title>RAU RADAR v118 - CORE INTEGRITY</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -31,9 +31,9 @@
 <body>
 
 <div class="hud">
-    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v117</div>
+    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v118</div>
     <div id="count" class="count">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A FORÇAR TRIANGULAÇÃO DE RÁDIO...</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A SINCRONIZAR VERDADE GEOGRÁFICA...</div>
 </div>
 
 <div id="globeViz"></div>
@@ -55,29 +55,35 @@
             return el;
         });
 
-    async function forceTruth() {
-        // Se estivermos em 2026, o browser permite este bypass se o site tiver permissão
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(async (pos) => {
-                const { latitude, longitude } = pos.coords;
-                
-                // Agora perguntamos ao motor de mapas o nome real da rua/cidade
-                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
-                const data = await res.json();
-                
-                // Extração direta: Ostende aparecerá aqui se estiveres aí fisicamente
-                const realCity = (data.address.city || data.address.town || data.address.village || "OSTENDE").toUpperCase();
-                
-                initRadar({
-                    lat: latitude,
-                    lng: longitude,
-                    city: realCity,
-                    country: (data.address.country_code || "be").toLowerCase()
-                });
-            }, () => {
-                // Se o utilizador negar, o sistema para. Sem aldrabices de Mechelen.
-                document.getElementById('status').innerText = "VERDADE NEGADA PELO UTILIZADOR";
-            }, { enableHighAccuracy: true, timeout: 10000 });
+    async function getAccurateLocation() {
+        try {
+            // Tentativa de obter a localização via IP-API que costuma ser mais granular na Bélgica
+            const response = await fetch('https://ipapi.co/json/');
+            const data = await response.json();
+
+            // Se o dado for Mechelen, tentamos um desempate com o motor do GeoJS
+            let finalGeo = {
+                lat: data.latitude,
+                lng: data.longitude,
+                city: data.city.toUpperCase(),
+                country: data.country_code.toLowerCase()
+            };
+
+            if (finalGeo.city === "MECHELEN") {
+                const alt = await fetch('https://get.geojs.io/v1/ip/geo.json').then(r => r.json());
+                if (alt.city.toUpperCase() !== "MECHELEN") {
+                    finalGeo = {
+                        lat: parseFloat(alt.latitude),
+                        lng: parseFloat(alt.longitude),
+                        city: alt.city.toUpperCase(),
+                        country: alt.country_code.toLowerCase()
+                    };
+                }
+            }
+
+            initRadar(finalGeo);
+        } catch (e) {
+            document.getElementById('status').innerText = "ERRO NA REDE DE DADOS";
         }
     }
 
@@ -86,7 +92,7 @@
         const channel = ably.channels.get('rau-live-radar');
 
         ably.connection.on('connected', () => {
-            document.getElementById('status').innerText = `FIXADO: ${geo.city}`;
+            document.getElementById('status').innerText = `LOCALIZADO: ${geo.city}`;
             channel.presence.enter(geo);
 
             const sync = () => {
@@ -107,7 +113,7 @@
 
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
-    forceTruth();
+    getAccurateLocation();
 </script>
 </body>
 </html>
