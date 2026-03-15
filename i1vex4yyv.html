@@ -2,45 +2,51 @@
 <html lang="pt-pt">
 <head>
     <meta charset="UTF-8">
+    <script src="https://unpkg.com/three"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
-        #globeViz { width: 100vw; height: 100vh; }
-        .radar-tag {
+        body { margin: 0; background: #000; overflow: hidden; font-family: monospace; }
+        #radar {
             position: absolute; top: 15px; left: 15px;
-            background: rgba(0, 30, 0, 0.8); color: #0f0;
-            padding: 12px; border: 1px solid #0f0;
-            border-radius: 2px; z-index: 100; font-size: 13px;
-            box-shadow: 0 0 10px rgba(0,255,0,0.3);
+            background: rgba(0, 20, 0, 0.85); color: #00ff00;
+            padding: 12px; border: 1px solid #00ff00;
+            z-index: 100; font-size: 13px; box-shadow: 0 0 15px rgba(0,255,0,0.2);
         }
     </style>
 </head>
 <body>
 
-    <div class="radar-tag" id="status">A SINCRONIZAR RADAR...</div>
+    <div id="radar">SISTEMA ATIVO: A LOCALIZAR...</div>
     <div id="globeViz"></div>
 
     <script>
-        // 1. Configuração do Globo com Estrelas e Texturas Reais
+        // 1. Iniciar o Globo com as texturas de Dia e Noite
         const world = Globe()(document.getElementById('globeViz'))
             .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
             .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
-            .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png') // Estrelas
+            .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png') // ESTRELAS
             .showAtmosphere(true)
             .atmosphereColor('#3a228a')
             .atmosphereAltitude(0.2);
 
-        // 2. Iluminação (Garante que um lado é Dia e outro é Noite)
-        world.controls().autoRotate = true;
-        world.controls().autoRotateSpeed = 0.5;
+        // 2. Configurar Iluminação Dinâmica (Simula o Sol)
+        const scene = world.scene();
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.3); // Luz suave global
+        scene.add(ambientLight);
 
-        // 3. Lógica Real: Cidade + Bandeira (Sem falhas de limite)
-        async function rastreioReal() {
-            const statusBox = document.getElementById('status');
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.5); // Luz do Sol forte
+        sunLight.position.set(1, 1, 1); 
+        scene.add(sunLight);
+
+        world.controls().autoRotate = true;
+        world.controls().autoRotateSpeed = 0.6;
+
+        // 3. Identificação Real (Cidade + Bandeira)
+        async function conectar() {
             try {
-                // Usamos a Cloudflare para o IP (infalível) + ipwhois para os dados
-                const cf = await fetch('https://www.cloudflare.com/cdn-cgi/trace').then(r => r.text());
-                const ip = cf.match(/ip=(.*)/)[1];
+                // Usamos o serviço da Cloudflare para evitar o "Limite de Rede"
+                const trace = await fetch('https://www.cloudflare.com/cdn-cgi/trace').then(r => r.text());
+                const ip = trace.match(/ip=(.*)/)[1];
                 
                 const res = await fetch(`https://ipwho.is/${ip}`);
                 const data = await res.json();
@@ -50,30 +56,28 @@
                         String.fromCodePoint(char.charCodeAt(0) + 127397)
                     );
 
-                    const infoTxt = `${flag} ${data.city}, ${data.country}`;
-                    statusBox.innerHTML = `ALVO: ${infoTxt}<br>COORD: ${data.latitude}, ${data.longitude}`;
+                    const info = `${flag} ${data.city}, ${data.country}`;
+                    document.getElementById('radar').innerHTML = `ALVO: ${info}<br>COORD: ${data.latitude}, ${data.longitude}`;
 
                     // Ponto no Globo
-                    world.labelsData([{ lat: data.latitude, lng: data.longitude, text: infoTxt }])
+                    world.labelsData([{ lat: data.latitude, lng: data.longitude, text: info }])
                         .labelSize(3)
-                        .labelColor(() => '#0f0')
-                        .labelDotRadius(1)
-                        .labelResolution(3);
+                        .labelColor(() => '#00ff00')
+                        .labelDotRadius(0.7);
 
                     world.ringsData([{ lat: data.latitude, lng: data.longitude }])
-                        .ringColor(() => '#0f0')
-                        .ringMaxRadius(5);
+                        .ringColor(() => '#00ff00')
+                        .ringMaxRadius(4);
 
-                    // Focar na localização do utilizador
+                    // Zoom suave para a tua casa
                     world.pointOfView({ lat: data.latitude, lng: data.longitude, altitude: 2 }, 3000);
                 }
             } catch (err) {
-                statusBox.innerHTML = "LIGAÇÃO ESTABELECIDA (AGUARDANDO DADOS)";
-                console.error(err);
+                document.getElementById('radar').innerText = "ERRO DE SINCRONIZAÇÃO";
             }
         }
 
-        rastreioReal();
+        conectar();
 
         window.addEventListener('resize', () => {
             world.width(window.innerWidth);
