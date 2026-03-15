@@ -3,37 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v189 - ATOM</title>
+    <title>RAU RADAR v190 - CRYSTAL FOCUS</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Arial', sans-serif; }
         #globeViz { width: 100vw; height: 100vh; position: absolute; }
         
-        /* HUD Ultra-Pequeno */
+        /* HUD Minimalista */
         .p-hud {
-            position: absolute; bottom: 15px; left: 15px;
-            background: rgba(0,0,0,0.8); border-left: 2px solid #39ff14;
-            padding: 5px 12px; color: #fff; z-index: 1000;
+            position: absolute; bottom: 20px; left: 20px;
+            background: rgba(0,0,0,0.85); border-left: 3px solid #39ff14;
+            padding: 8px 15px; color: #fff; z-index: 1000;
+            pointer-events: none; border-radius: 0 4px 4px 0;
         }
-        .p-hud div { font-size: 10px; font-weight: bold; letter-spacing: 1px; }
-        .p-count { color: #39ff14; font-size: 9px; margin-top: 2px; }
+        .p-city { font-size: 12px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; }
+        .p-count { color: #39ff14; font-size: 10px; font-family: monospace; margin-top: 3px; }
 
-        /* Marcador Minimalista */
-        .m-rau { display: flex; flex-direction: column; align-items: center; pointer-events: none; }
-        .m-tag { 
-            display: flex; align-items: center; gap: 4px; 
-            background: #000; padding: 2px 5px; border: 0.5px solid #39ff14; 
-            border-radius: 2px; margin-bottom: 2px;
+        /* Marcador: Corrigido para Visibilidade Total */
+        .m-rau { 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center;
+            pointer-events: none;
+            width: 120px; /* Área de renderização fixa */
         }
-        .m-flag { width: 14px; height: 9px; }
-        .m-city { color: #fff; font-size: 9px; font-weight: bold; }
+
+        .m-tag { 
+            display: flex; 
+            align-items: center; 
+            gap: 6px; 
+            background: rgba(0, 0, 0, 0.9); 
+            padding: 3px 8px; 
+            border: 1px solid #39ff14; 
+            border-radius: 3px;
+            margin-bottom: 4px;
+            box-shadow: 0 0 10px rgba(0,0,0,1);
+        }
+
+        .m-flag { 
+            width: 18px; 
+            height: 12px; 
+            display: block; 
+            object-fit: cover;
+            border: 0.5px solid #555;
+        }
+
+        .m-city { 
+            color: #ffffff; 
+            font-size: 10px; 
+            font-weight: 900; 
+            white-space: nowrap;
+            text-shadow: 1px 1px 2px #000;
+        }
         
-        /* Ponto Laser Pequeno e Reluzente */
+        /* Ponto Laser Estático Reluzente */
         .m-dot { 
-            width: 5px; height: 5px; background: #39ff14; border-radius: 50%; 
-            box-shadow: 0 0 8px #39ff14; border: 0.5px solid #fff; 
+            width: 6px; 
+            height: 6px; 
+            background: #39ff14; 
+            border-radius: 50%; 
+            box-shadow: 0 0 12px #39ff14, 0 0 4px #fff; 
+            border: 1px solid #ffffff;
         }
     </style>
 </head>
@@ -42,24 +75,28 @@
 <div id="globeViz"></div>
 
 <div class="p-hud">
-    <div id="city-out">LOCATING...</div>
-    <div class="p-count">ACTIVE NODES: <span id="count">0</span></div>
+    <div id="city-out" class="p-city">A LOCALIZAR...</div>
+    <div class="p-count">RADAR_NODE: <span id="count">0</span></div>
 </div>
 
 <script>
-    const RAU_ID = 'ATOM-' + Math.random().toString(36).substr(2, 5);
+    const RAU_ID = 'CRYSTAL-' + Math.random().toString(36).substr(2, 5);
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
 
     const world = Globe()(document.getElementById('globeViz'))
         .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
         .backgroundColor('#000000')
-        .showAtmosphere(false) // Removido para ser mais limpo
+        .showAtmosphere(true)
+        .atmosphereColor('#39ff14')
+        .atmosphereDaylightAlpha(0.1)
         .htmlElement(d => {
             const el = document.createElement('div');
             el.className = 'm-rau';
+            // Garantir que o código do país existe antes de tentar carregar a bandeira
+            const countryCode = (d.country || 'be').toLowerCase();
             el.innerHTML = `
                 <div class="m-tag">
-                    <img src="https://flagcdn.com/w40/${d.country.toLowerCase()}.png" class="m-flag">
+                    <img src="https://flagcdn.com/w40/${countryCode}.png" class="m-flag" onerror="this.style.display='none'">
                     <span class="m-city">${d.city}</span>
                 </div>
                 <div class="m-dot"></div>
@@ -68,10 +105,11 @@
         });
 
     world.controls().autoRotate = true;
-    world.controls().autoRotateSpeed = 0.4;
+    world.controls().autoRotateSpeed = 0.5;
 
-    async function init() {
+    async function startRadar() {
         try {
+            // Método de Infraestrutura Cloudflare para precisão máxima
             const res = await fetch('https://speed.cloudflare.com/meta');
             const data = await res.json();
             
@@ -95,7 +133,8 @@
                         if (!err) {
                             const nodes = Array.from(new Map(members.map(m => [m.clientId, m.data])).values());
                             document.getElementById('count').innerText = nodes.length;
-                            world.htmlElementsData(nodes);
+                            // Forçar atualização dos elementos no globo
+                            world.htmlElementsData(nodes.filter(n => n.lat && n.lng));
                         }
                     });
                 };
@@ -106,11 +145,11 @@
             world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 2 }, 1500);
 
         } catch (e) {
-            document.getElementById('city-out').innerText = "OFFLINE";
+            document.getElementById('city-out').innerText = "SINAL PERDIDO";
         }
     }
 
-    init();
+    startRadar();
 </script>
 </body>
 </html>
