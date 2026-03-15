@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v95 - ORIGIN RESTORE</title>
+    <title>RAU RADAR v96 - TOTAL FIX</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -31,9 +31,9 @@
 <body>
 
 <div class="hud">
-    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v95</div>
+    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v96</div>
     <div id="count" class="count">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">RASTREAMENTO RADAR ATIVO...</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A CONECTAR AO RADAR...</div>
 </div>
 
 <div id="globeViz"></div>
@@ -42,6 +42,7 @@
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
     const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 7);
 
+    // Inicialização do Globo (Estilo Original)
     const world = Globe()(document.getElementById('globeViz'))
         .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
         .backgroundColor('#000000')
@@ -55,32 +56,29 @@
             return el;
         });
 
-    async function initRadar() {
+    async function startRadar() {
         try {
-            // 1. Puxar o IP via Cloudflare (O mais preciso para ti)
-            const trace = await fetch('https://1.1.1.1/cdn-cgi/trace').then(r => r.text());
-            const ip = trace.split('\n').find(l => l.startsWith('ip=')).split('=')[1];
+            // MOTOR CLOUDFLARE DIRETO (Sem APIs intermédias que falham)
+            // Usamos o serviço de Speedtest da Cloudflare que devolve metadados de localização exatos
+            const response = await fetch('https://speed.cloudflare.com/meta');
+            const data = await response.json();
 
-            // 2. Usar o serviço ipapi.co com o IP do Cloudflare para converter em coordenadas
-            const res = await fetch(`https://ipapi.co/${ip}/json/`);
-            const d = await res.json();
-            
-            if (d.latitude) {
+            if (data.city) {
                 const geo = {
-                    lat: d.latitude,
-                    lng: d.longitude,
-                    city: d.city.toUpperCase(),
-                    country: d.country_code.toLowerCase()
+                    lat: data.latitude,
+                    lng: data.longitude,
+                    city: data.city.toUpperCase(),
+                    country: data.country.toLowerCase()
                 };
 
                 const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
                 const channel = ably.channels.get('rau-live-radar');
 
                 ably.connection.on('connected', () => {
-                    document.getElementById('status').innerText = `LOCALIZADO: ${geo.city}`;
+                    document.getElementById('status').innerText = `RADAR ATIVO: ${geo.city}`;
                     channel.presence.enter(geo);
 
-                    const update = () => {
+                    const sync = () => {
                         channel.presence.get((err, members) => {
                             if (!err) {
                                 const nodes = members.map(m => m.data).filter(x => x && x.lat);
@@ -89,20 +87,21 @@
                             }
                         });
                     };
-                    channel.presence.subscribe(['enter', 'leave', 'present', 'update'], update);
-                    update();
+                    channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
+                    sync();
                 });
 
                 world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.8 }, 2000);
             }
         } catch (e) {
-            document.getElementById('status').innerText = "ERRO DE SINCRONIZAÇÃO";
+            document.getElementById('status').innerText = "ERRO DE CONEXÃO AO SERVIDOR";
+            console.error("Erro v96:", e);
         }
     }
 
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
-    initRadar();
+    startRadar();
 </script>
 </body>
 </html>
