@@ -3,13 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v60 - TOTAL LIVE</title>
+    <title>RAU RADAR v60 - FINAL LIVE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Arial Black', sans-serif; transition: background 1s; }
         #globeViz { width: 100vw; height: 100vh; position: absolute; }
+        
+        /* HUD ESQUERDO */
         .hud {
             position: absolute; top: 25px; left: 25px; z-index: 1000;
             background: rgba(0, 0, 0, 0.9); border: 2px solid #39ff14;
@@ -18,28 +20,28 @@
         }
         .count-big { font-size: 80px; font-weight: 900; color: #fff; line-height: 0.8; letter-spacing: -5px; }
         
-        /* ETIQUETA NO GLOBO - CONFIGURAÇÃO GUARDADA */
-        .m-rau { display: flex; flex-direction: column; align-items: center; }
+        /* ETIQUETA VERDE NO GLOBO */
+        .m-rau { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
         .l-rau {
-            background: #39ff14; color: #000; padding: 4px 10px; border-radius: 2px;
-            font-size: 11px; font-weight: 900; display: flex; align-items: center; gap: 6px;
-            white-space: nowrap; border: 1px solid #fff; box-shadow: 0 0 10px #39ff14;
+            background: #39ff14; color: #000; padding: 5px 12px; border-radius: 2px;
+            font-size: 12px; font-weight: 900; display: flex; align-items: center; gap: 8px;
+            white-space: nowrap; border: 1px solid #fff; box-shadow: 0 0 15px #39ff14;
         }
-        .l-rau img { width: 22px; height: 15px; object-fit: cover; border: 1px solid #000; }
+        .l-rau img { width: 20px; height: 14px; object-fit: cover; border: 1px solid #000; }
         
-        /* PONTINHO VERDE PULSANTE */
+        /* PONTO VERDE PULSANTE */
         .d-rau { 
-            width: 12px; height: 12px; background: #fff; border-radius: 50%; 
-            margin-top: 5px; border: 2px solid #39ff14; 
-            animation: p 0.8s infinite alternate; 
+            width: 14px; height: 14px; background: #fff; border-radius: 50%; 
+            margin-top: 6px; border: 3px solid #39ff14; 
+            animation: p 1s infinite alternate; 
         }
-        @keyframes p { from { transform: scale(1); opacity: 1; } to { transform: scale(3.5); opacity: 0; } }
+        @keyframes p { from { transform: scale(1); opacity: 1; } to { transform: scale(3); opacity: 0; } }
     </style>
 </head>
 <body>
 
 <div class="hud">
-    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v60</div>
+    <div style="font-size: 10px; letter-spacing: 5px; margin-bottom: 5px;">RAU SYSTEM v60</div>
     <div id="user-count-hud" class="count-big">0</div>
     <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A RASTREAR...</div>
 </div>
@@ -47,15 +49,16 @@
 <div id="globeViz"></div>
 
 <script>
-    // 1. Configuração Dia/Noite (Agora são 20:34 = NOITE / Fundo Preto)
+    // 1. Lógica Dia/Noite (20:36 = NOITE / Fundo Preto)
     const hora = new Date().getHours();
     const eDia = hora >= 7 && hora < 19;
     const corFundo = eDia ? '#87CEEB' : '#000000';
     const imgTerra = eDia ? '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg' : '//unpkg.com/three-globe/example/img/earth-night.jpg';
     document.body.style.background = corFundo;
 
+    // Chave Ably e ID de Sessão
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
-    const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 7);
+    const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 5);
 
     const world = Globe()(document.getElementById('globeViz'))
         .globeImageUrl(imgTerra)
@@ -66,7 +69,6 @@
             const el = document.createElement('div');
             el.className = 'm-rau';
             const flagUrl = `https://flagcdn.com/w40/${d.countryCode.toLowerCase()}.png`;
-            // Etiqueta com Bandeira + Nome da Cidade
             el.innerHTML = `
                 <div class="l-rau">
                     <img src="${flagUrl}">
@@ -78,7 +80,7 @@
 
     async function init() {
         try {
-            // Localização precisa via HTTPS (ipapi.co)
+            // Localização Segura (HTTPS)
             const res = await fetch('https://ipapi.co/json/');
             const geo = await res.json();
 
@@ -94,19 +96,16 @@
                 const channel = ably.channels.get('rau-live-radar');
 
                 ably.connection.on('connected', () => {
-                    document.getElementById('status').innerText = `FIXADO: ${geo.city.toUpperCase()}`;
-                    // Entra na rede com os teus dados
+                    document.getElementById('status').innerText = `LOCALIZADO: ${geo.city.toUpperCase()}`;
                     channel.presence.enter(myData);
 
-                    // Escuta todos os utilizadores (conexões)
                     const updatePresence = () => {
                         channel.presence.get((err, members) => {
                             if (!err) {
-                                // Lista de todos os ligados
                                 const activeUsers = members.map(m => m.data).filter(x => x && x.lat);
-                                // Atualiza o contador de visitas total no HUD
+                                // Atualiza o contador de visitas no HUD
                                 document.getElementById('user-count-hud').innerText = activeUsers.length;
-                                // Coloca todas as etiquetas (Cidade + Bandeira) no globo
+                                // Coloca as etiquetas de todos os conectados no globo
                                 world.htmlElementsData(activeUsers);
                             }
                         });
@@ -116,16 +115,15 @@
                     updatePresence();
                 });
 
-                // Foca na tua posição inicial
-                world.pointOfView({ lat: geo.latitude, lng: geo.longitude, altitude: 1.8 }, 2000);
+                world.pointOfView({ lat: geo.latitude, lng: geo.longitude, altitude: 2 }, 2000);
             }
         } catch (e) {
-            document.getElementById('status').innerText = "ERRO DE SINCRONIZAÇÃO";
+            document.getElementById('status').innerText = "ERRO: VERIFIQUE A LIGAÇÃO";
         }
     }
 
     world.controls().autoRotate = true;
-    world.controls().autoRotateSpeed = 0.5;
+    world.controls().autoRotateSpeed = 0.6;
     window.onload = init;
 </script>
 </body>
