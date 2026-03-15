@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v78 - CORE</title>
+    <title>RAU RADAR v79 - ABSOLUTE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -28,76 +28,79 @@
         .d-rau { 
             width: 14px; height: 14px; background: #fff; border-radius: 50%; 
             margin-top: 6px; border: 3px solid #39ff14; 
-            animation: pulse-v78 1s infinite ease-out; 
+            animation: pulse-v79 1s infinite ease-out; 
         }
-        @keyframes pulse-v78 { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(4); opacity: 0; } }
+        @keyframes pulse-v79 { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(4); opacity: 0; } }
     </style>
 </head>
 <body>
 
 <div class="hud">
-    <div class="v-tag">RAU SYSTEM v78 [CORE]</div>
+    <div class="v-tag">RAU SYSTEM v79 [ABSOLUTE]</div>
     <div id="user-count-hud" class="count-big">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 15px; font-family: monospace; border-top: 2px solid #39ff14; padding-top: 5px;">SISTEMA OPERACIONAL</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 15px; font-family: monospace; border-top: 2px solid #39ff14; padding-top: 5px;">A AGUARDAR DADOS...</div>
 </div>
 
 <div id="globeViz"></div>
 
 <script>
-    // 1. CONFIGURAÇÃO DO GLOBO (DIA: 13:54)
-    const world = Globe()(document.getElementById('globeViz'))
-        .globeImageUrl('//unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
-        .backgroundColor('#87CEEB')
-        .showAtmosphere(true)
-        .atmosphereColor('#39ff14')
-        .htmlElement(d => {
-            const el = document.createElement('div');
-            el.className = 'm-rau';
-            const flagUrl = `https://flagcdn.com/w40/${d.countryCode.toLowerCase()}.png`;
-            el.innerHTML = `<div class="l-rau"><img src="${flagUrl}"><span>${d.city.toUpperCase()}</span></div><div class="d-rau"></div>`;
-            return el;
-        });
-
-    // 2. MOTOR CORE (JSONP - O padrão que não falha)
+    // 1. DADOS DE ACESSO
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
     const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 5);
 
-    function forceNexus() {
-        const script = document.createElement('script');
-        script.src = 'https://ip-api.com/json/?callback=activeCore&t=' + Date.now();
-        document.body.appendChild(script);
-    }
-
-    window.activeCore = function(data) {
-        if (data.status === 'success') {
-            const myLoc = { lat: data.lat, lng: data.lon, city: data.city, countryCode: data.countryCode };
-            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
-            const channel = ably.channels.get('rau-v78-stable');
-
-            ably.connection.on('connected', () => {
-                document.getElementById('status').innerText = `FIX: ${data.city.toUpperCase()}`;
-                channel.presence.enter(myLoc);
-
-                const sync = () => {
-                    channel.presence.get((err, members) => {
-                        if (!err) {
-                            const users = members.map(m => m.data).filter(x => x && x.lat);
-                            document.getElementById('user-count-hud').innerText = users.length;
-                            world.htmlElementsData(users);
-                        }
-                    });
-                };
-                channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
-                sync();
-            });
-            world.pointOfView({ lat: data.lat, lng: data.lon, altitude: 2 }, 2000);
+    // 2. FUNÇÃO QUE INICIA TUDO SÓ APÓS TER O IP
+    window.masterEngine = function(data) {
+        if (data.status !== 'success') {
+            document.getElementById('status').innerText = "ERRO CRÍTICO DE REDE";
+            return;
         }
+
+        document.getElementById('status').innerText = `FIX: ${data.city.toUpperCase()}`;
+
+        // Inicia o Globo
+        const world = Globe()(document.getElementById('globeViz'))
+            .globeImageUrl('//unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
+            .backgroundColor('#87CEEB')
+            .showAtmosphere(true)
+            .atmosphereColor('#39ff14')
+            .htmlElement(d => {
+                const el = document.createElement('div');
+                el.className = 'm-rau';
+                const flagUrl = `https://flagcdn.com/w40/${d.countryCode.toLowerCase()}.png`;
+                el.innerHTML = `<div class="l-rau"><img src="${flagUrl}"><span>${d.city.toUpperCase()}</span></div><div class="d-rau"></div>`;
+                return el;
+            });
+
+        world.controls().autoRotate = true;
+        world.controls().autoRotateSpeed = 0.5;
+        world.pointOfView({ lat: data.lat, lng: data.lon, altitude: 2 }, 2000);
+
+        // Inicia o Ably
+        const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
+        const channel = ably.channels.get('rau-v79-abs');
+
+        const myLoc = { lat: data.lat, lng: data.lon, city: data.city, countryCode: data.countryCode };
+
+        ably.connection.on('connected', () => {
+            channel.presence.enter(myLoc);
+            const sync = () => {
+                channel.presence.get((err, members) => {
+                    if (!err) {
+                        const users = members.map(m => m.data).filter(x => x && x.lat);
+                        document.getElementById('user-count-hud').innerText = users.length;
+                        world.htmlElementsData(users);
+                    }
+                });
+            };
+            channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
+            sync();
+        });
     };
 
-    // Execução Imediata
-    forceNexus();
-    world.controls().autoRotate = true;
-    world.controls().autoRotateSpeed = 0.5;
+    // 3. O ÚNICO COMANDO QUE EXECUTA AO CARREGAR (O GATILHO)
+    const script = document.createElement('script');
+    script.src = 'https://ip-api.com/json/?callback=masterEngine&t=' + Date.now();
+    document.body.appendChild(script);
 </script>
 </body>
 </html>
