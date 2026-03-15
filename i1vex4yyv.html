@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RAU RADAR v198 - PULSING COSMOS</title>
+    <title>RAU RADAR v197 - STELLAR FOCUS</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -11,26 +11,30 @@
         body { margin: 0; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; height: 100vh; width: 100vw; }
         #globeViz { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
         
+        /* HUD Adaptável Chronos */
         .p-hud {
-            position: absolute; top: 30px; left: 20px;
+            position: absolute; top: clamp(10px, 3vh, 30px); left: clamp(10px, 3vw, 20px);
             background: rgba(0,0,0,0.85); border-left: 2px solid #39ff14;
-            padding: 12px 18px; color: #fff; z-index: 1000;
+            padding: clamp(8px, 2vh, 12px) clamp(12px, 2vw, 18px); color: #fff; z-index: 1000;
             border-radius: 0 4px 4px 0; backdrop-filter: blur(8px);
         }
-        .p-city { font-size: 14px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; }
-        .p-live { color: #39ff14; font-size: 10px; font-family: monospace; margin-top: 6px; }
+        .p-city { font-size: clamp(12px, 2vw, 14px); font-weight: 900; letter-spacing: 2px; text-transform: uppercase; }
+        .p-time { font-size: clamp(8px, 1.2vw, 10px); color: #39ff14; font-family: monospace; margin-top: 2px; }
+        .p-live { color: #39ff14; font-size: clamp(9px, 1.5vw, 11px); font-family: monospace; margin-top: 6px; }
 
+        /* Marcadores */
         .m-rau { display: flex; flex-direction: column; align-items: center; pointer-events: none; }
         .m-tag { 
             display: flex; align-items: center; gap: 6px; 
             background: rgba(0, 0, 0, 0.95); padding: 4px 8px; 
             border: 1px solid #39ff14; border-radius: 2px; margin-bottom: 4px;
         }
-        .m-flag { width: 16px; height: auto; }
-        .m-city { color: #fff; font-size: 9px; font-weight: bold; text-transform: uppercase; }
+        .m-flag { width: clamp(14px, 2vw, 18px); height: auto; }
+        .m-city { color: #fff; font-size: clamp(8px, 1.2vw, 10px); font-weight: bold; text-transform: uppercase; }
         
         .dot-active { 
-            width: 6px; height: 6px; background: #39ff14; border-radius: 50%; 
+            width: clamp(5px, 1vw, 7px); height: clamp(5px, 1vw, 7px); 
+            background: #39ff14; border-radius: 50%; 
             box-shadow: 0 0 10px #39ff14; border: 1px solid #fff;
         }
         .dot-ghost { width: 4px; height: 4px; background: #440000; border-radius: 50%; opacity: 0.6; }
@@ -41,12 +45,13 @@
 <div id="globeViz"></div>
 
 <div class="p-hud">
-    <div id="status-text" class="p-city">COSMOS SYNC...</div>
+    <div id="status-text" class="p-city">SYSTEM SYNC...</div>
+    <div id="time-text" class="p-time">---</div>
     <div class="p-live">LIVE NODES: <span id="count">0</span></div>
 </div>
 
 <script>
-    const RAU_ID = 'PULSE-' + Math.random().toString(36).substr(2, 5);
+    const RAU_ID = 'STELLAR-' + Math.random().toString(36).substr(2, 5);
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
 
     const hour = new Date().getHours();
@@ -74,44 +79,31 @@
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
 
-    // --- ESTRELAS ESTÁTICAS COM PISCA-PISCA (20s) ---
+    // --- NOVO MOTOR DE ESTRELAS ESTÁTICAS (Three.js) ---
+    const scene = world.scene();
+    
     const starsGeometry = new THREE.BufferGeometry();
     const starsVertices = [];
     for (let i = 0; i < 6000; i++) {
         const x = THREE.MathUtils.randFloatSpread(2000);
         const y = THREE.MathUtils.randFloatSpread(2000);
         const z = THREE.MathUtils.randFloatSpread(2000);
+        // Garante que não estão dentro do globo
         if (Math.sqrt(x*x + y*y + z*z) > 250) starsVertices.push(x, y, z);
     }
     starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
     
-    const starsMaterial = new THREE.PointsMaterial({
-        color: 0xffffff,
-        size: 0.8,
-        transparent: true,
-        opacity: 0.8
-    });
-    
-    const starField = new THREE.Points(starsGeometry, starsMaterial);
-    world.scene().add(starField);
+    const starField = new THREE.Points(starsGeometry, new THREE.PointsMaterial({color: 0xffffff, size: 0.7, transparent: true, opacity: 0.8}));
+    scene.add(starField); // Adicionado à cena, não ao globo rotativo
+    // ---------------------------------------------------
 
-    // Lógica do Pisca-Pisca (20 segundos)
-    function animateStars() {
-        const time = Date.now() * 0.001; // Tempo em segundos
-        // Ciclo de 20 segundos para a opacidade (0.2 a 1.0)
-        const pulse = (Math.sin(time * (Math.PI * 2 / 20)) + 1) / 2; 
-        starsMaterial.opacity = 0.2 + (pulse * 0.8);
-        requestAnimationFrame(animateStars);
-    }
-    animateStars();
-
-    // Motor de Responsividade
     window.addEventListener('resize', () => {
         world.width(window.innerWidth);
         world.height(window.innerHeight);
     });
 
-    async function launch() {
+    async function launchStellar() {
+        document.getElementById('time-text').innerText = isNight ? "MODE: NIGHT OPS (STELLAR)" : "MODE: DAYLIGHT SCAN";
         try {
             const res = await fetch('https://speed.cloudflare.com/meta');
             const data = await res.json();
@@ -143,7 +135,7 @@
         } catch (e) { document.getElementById('status-text').innerText = "GENERAL ACCESS"; }
     }
 
-    launch();
+    launchStellar();
 </script>
 </body>
 </html>
