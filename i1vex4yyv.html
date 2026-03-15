@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v79 - ABSOLUTE</title>
+    <title>RAU RADAR v80 - APEX</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -12,9 +12,9 @@
         #globeViz { width: 100vw; height: 100vh; position: absolute; }
         .hud {
             position: absolute; top: 25px; left: 25px; z-index: 1000;
-            background: rgba(0, 0, 0, 0.9); border: 2px solid #39ff14;
+            background: rgba(0, 0, 0, 0.95); border: 2px solid #39ff14;
             padding: 20px; color: #39ff14; pointer-events: none;
-            box-shadow: 0 0 30px rgba(57, 255, 20, 0.4);
+            box-shadow: 0 0 40px rgba(57, 255, 20, 0.5);
         }
         .v-tag { font-size: 10px; letter-spacing: 5px; color: #39ff14; margin-bottom: 5px; }
         .count-big { font-size: 110px; font-weight: 900; color: #fff; line-height: 0.7; letter-spacing: -8px; }
@@ -28,79 +28,74 @@
         .d-rau { 
             width: 14px; height: 14px; background: #fff; border-radius: 50%; 
             margin-top: 6px; border: 3px solid #39ff14; 
-            animation: pulse-v79 1s infinite ease-out; 
+            animation: pulse-v80 1.2s infinite ease-out; 
         }
-        @keyframes pulse-v79 { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(4); opacity: 0; } }
+        @keyframes pulse-v80 { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(4); opacity: 0; } }
     </style>
 </head>
 <body>
 
 <div class="hud">
-    <div class="v-tag">RAU SYSTEM v79 [ABSOLUTE]</div>
+    <div class="v-tag">RAU SYSTEM v80 [APEX]</div>
     <div id="user-count-hud" class="count-big">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 15px; font-family: monospace; border-top: 2px solid #39ff14; padding-top: 5px;">A AGUARDAR DADOS...</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 15px; font-family: monospace; border-top: 2px solid #39ff14; padding-top: 8px;">RASTREAMENTO ATIVO</div>
 </div>
 
 <div id="globeViz"></div>
 
 <script>
-    // 1. DADOS DE ACESSO
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
-    const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 5);
+    const SESSION_ID = 'RAU-V80-' + Math.random().toString(36).substr(2, 5);
 
-    // 2. FUNÇÃO QUE INICIA TUDO SÓ APÓS TER O IP
-    window.masterEngine = function(data) {
-        if (data.status !== 'success') {
-            document.getElementById('status').innerText = "ERRO CRÍTICO DE REDE";
-            return;
-        }
+    // Inicia o Globo Imediatamente com fundo Azul (13:57 = Dia)
+    const world = Globe()(document.getElementById('globeViz'))
+        .globeImageUrl('//unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
+        .backgroundColor('#87CEEB')
+        .showAtmosphere(true)
+        .atmosphereColor('#39ff14')
+        .htmlElement(d => {
+            const el = document.createElement('div');
+            el.className = 'm-rau';
+            const flagUrl = `https://flagcdn.com/w40/${d.countryCode.toLowerCase()}.png`;
+            el.innerHTML = `<div class="l-rau"><img src="${flagUrl}"><span>${d.city.toUpperCase()}</span></div><div class="d-rau"></div>`;
+            return el;
+        });
 
-        document.getElementById('status').innerText = `FIX: ${data.city.toUpperCase()}`;
+    world.controls().autoRotate = true;
+    world.controls().autoRotateSpeed = 0.5;
 
-        // Inicia o Globo
-        const world = Globe()(document.getElementById('globeViz'))
-            .globeImageUrl('//unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
-            .backgroundColor('#87CEEB')
-            .showAtmosphere(true)
-            .atmosphereColor('#39ff14')
-            .htmlElement(d => {
-                const el = document.createElement('div');
-                el.className = 'm-rau';
-                const flagUrl = `https://flagcdn.com/w40/${d.countryCode.toLowerCase()}.png`;
-                el.innerHTML = `<div class="l-rau"><img src="${flagUrl}"><span>${d.city.toUpperCase()}</span></div><div class="d-rau"></div>`;
-                return el;
+    // MOTOR v80 - Execução Blindada
+    window.initApex = function(data) {
+        if (data.status === 'success') {
+            document.getElementById('status').innerText = `FIX: ${data.city.toUpperCase()}`;
+            
+            const myLoc = { lat: data.lat, lng: data.lon, city: data.city, countryCode: data.countryCode };
+            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
+            const channel = ably.channels.get('rau-v80-channel');
+
+            ably.connection.on('connected', () => {
+                channel.presence.enter(myLoc);
+                const sync = () => {
+                    channel.presence.get((err, members) => {
+                        if (!err) {
+                            const users = members.map(m => m.data).filter(x => x && x.lat);
+                            document.getElementById('user-count-hud').innerText = users.length;
+                            world.htmlElementsData(users);
+                        }
+                    });
+                };
+                channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
+                sync();
             });
 
-        world.controls().autoRotate = true;
-        world.controls().autoRotateSpeed = 0.5;
-        world.pointOfView({ lat: data.lat, lng: data.lon, altitude: 2 }, 2000);
-
-        // Inicia o Ably
-        const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
-        const channel = ably.channels.get('rau-v79-abs');
-
-        const myLoc = { lat: data.lat, lng: data.lon, city: data.city, countryCode: data.countryCode };
-
-        ably.connection.on('connected', () => {
-            channel.presence.enter(myLoc);
-            const sync = () => {
-                channel.presence.get((err, members) => {
-                    if (!err) {
-                        const users = members.map(m => m.data).filter(x => x && x.lat);
-                        document.getElementById('user-count-hud').innerText = users.length;
-                        world.htmlElementsData(users);
-                    }
-                });
-            };
-            channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
-            sync();
-        });
+            world.pointOfView({ lat: data.lat, lng: data.lon, altitude: 2 }, 2000);
+        }
     };
 
-    // 3. O ÚNICO COMANDO QUE EXECUTA AO CARREGAR (O GATILHO)
-    const script = document.createElement('script');
-    script.src = 'https://ip-api.com/json/?callback=masterEngine&t=' + Date.now();
-    document.body.appendChild(script);
+    // Injeção de script de localização SEM CACHE
+    const s = document.createElement('script');
+    s.src = 'https://ip-api.com/json/?callback=initApex&_=' + new Date().getTime();
+    document.head.appendChild(s);
 </script>
 </body>
 </html>
