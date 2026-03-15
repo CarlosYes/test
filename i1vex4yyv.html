@@ -2,66 +2,95 @@
 <html lang="pt-pt">
 <head>
     <meta charset="UTF-8">
-    <script src="https://unpkg.com/three"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAU RADAR v60 - FINAL FIX</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Courier New', monospace; transition: background 1s; }
-        #radar-box {
-            position: absolute; top: 20px; left: 20px;
-            background: rgba(0, 30, 0, 0.9); color: #00ff00;
-            padding: 15px; border: 2px solid #00ff00;
-            z-index: 1000; font-size: 18px; font-weight: bold;
-            box-shadow: 0 0 15px #00ff00; border-radius: 5px;
+        body { margin: 0; overflow: hidden; font-family: 'Arial Black', sans-serif; transition: background 1s; }
+        #globeViz { width: 100vw; height: 100vh; position: absolute; }
+        .hud {
+            position: absolute; top: 25px; left: 25px; z-index: 1000;
+            background: rgba(0, 0, 0, 0.9); border: 2px solid #39ff14;
+            padding: 20px; color: #39ff14; pointer-events: none;
+            box-shadow: 0 0 35px #39ff1466; border-radius: 4px;
         }
+        .m-rau { display: flex; flex-direction: column; align-items: center; }
+        .l-rau {
+            background: #39ff14; color: #000; padding: 4px 10px; border-radius: 2px;
+            font-size: 11px; font-weight: 900; display: flex; align-items: center; gap: 6px;
+            white-space: nowrap; border: 1px solid #fff; box-shadow: 0 0 10px #39ff14;
+        }
+        .l-rau img { width: 22px; height: 15px; object-fit: cover; border: 1px solid #000; }
+        .d-rau { 
+            width: 12px; height: 12px; background: #fff; border-radius: 50%; 
+            margin-top: 5px; border: 2px solid #39ff14; 
+            animation: p 0.8s infinite alternate; 
+        }
+        @keyframes p { from { transform: scale(1); opacity: 1; } to { transform: scale(3.5); opacity: 0; } }
     </style>
 </head>
 <body>
-    <div id="radar-box">SISTEMA: A LIGAR...</div>
-    <div id="globeViz"></div>
 
-    <script>
-        // Lógica de Dia/Noite (Horário Local)
-        const hora = new Date().getHours();
-        const eDia = hora >= 7 && hora < 19;
-        
-        const corFundo = eDia ? '#87CEEB' : '#000000'; // Azul Céu ou Preto
-        const imgTerra = eDia 
-            ? 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg' 
-            : 'https://unpkg.com/three-globe/example/img/earth-night.jpg';
+<div class="hud">
+    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v60</div>
+    <div id="status" style="font-size: 14px; color: #fff; margin-top: 10px; font-family: monospace;">A RASTREAR...</div>
+</div>
 
-        document.body.style.background = corFundo;
+<div id="globeViz"></div>
 
-        const world = Globe()(document.getElementById('globeViz'))
-            .globeImageUrl(imgTerra)
-            .backgroundColor(corFundo)
-            .showAtmosphere(true)
-            .atmosphereColor('#00ff00');
+<script>
+    // 1. Lógica Dia/Noite (Corrigida para o teu fuso horário)
+    const hora = new Date().getHours();
+    const eDia = hora >= 7 && hora < 19;
+    const corFundo = eDia ? '#87CEEB' : '#000000';
+    const imgTerra = eDia 
+        ? '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg' 
+        : '//unpkg.com/three-globe/example/img/earth-night.jpg';
+    
+    document.body.style.background = corFundo;
 
-        async function carregar() {
-            try {
-                // Fetch para o TEU worker sem cache
-                const res = await fetch('https://globorau.carlos2022yes.workers.dev/?t=' + Date.now());
-                const d = await res.json();
+    const world = Globe()(document.getElementById('globeViz'))
+        .globeImageUrl(imgTerra)
+        .backgroundColor(corFundo)
+        .showAtmosphere(true)
+        .atmosphereColor('#39ff14')
+        .htmlElement(d => {
+            const el = document.createElement('div');
+            el.className = 'm-rau';
+            const flagUrl = `https://flagcdn.com/w40/${d.country_code.toLowerCase()}.png`;
+            el.innerHTML = `<div class="l-rau"><img src="${flagUrl}"><span>${d.city.toUpperCase()}</span></div><div class="d-rau"></div>`;
+            return el;
+        });
+
+    async function init() {
+        try {
+            // A ÚNICA API que o GitHub aceita sem bloquear e que não te manda para Mechelen
+            const res = await fetch('https://ipapi.co/json/');
+            const d = await res.json();
+
+            if (d.city) {
+                document.getElementById('status').innerText = `FIXADO: ${d.city.toUpperCase()}`;
                 
-                const local = `${d.flag} ${d.city.toUpperCase()}`;
-                document.getElementById('radar-box').innerHTML = `LOCALIZADO: ${local}`;
+                // Dados para o ponto verde pulsante
+                const ponto = {
+                    latitude: d.latitude,
+                    longitude: d.longitude,
+                    city: d.city,
+                    country_code: d.country_code
+                };
 
-                // O PONTO VERDE COM O NOME E BANDEIRA NO GLOBO
-                world.labelsData([{ lat: d.latitude, lng: d.longitude, text: local }])
-                    .labelColor(() => '#00ff00')
-                    .labelSize(3)
-                    .labelDotRadius(0.8);
-
-                world.ringsData([{ lat: d.latitude, lng: d.longitude }])
-                    .ringColor(() => '#00ff00')
-                    .ringMaxRadius(6);
-
-                world.pointOfView({ lat: d.latitude, lng: d.longitude, altitude: 2 }, 2000);
-            } catch (e) {
-                document.getElementById('radar-box').innerHTML = "ERRO DE CONEXÃO";
+                world.htmlElementsData([ponto]);
+                world.pointOfView({ lat: d.latitude, lng: d.longitude, altitude: 1.8 }, 2000);
             }
+        } catch (e) {
+            document.getElementById('status').innerText = "ERRO DE SINCRONIZAÇÃO";
         }
-        carregar();
-    </script>
+    }
+
+    world.controls().autoRotate = true;
+    world.controls().autoRotateSpeed = 0.5;
+    window.onload = init;
+</script>
 </body>
 </html>
