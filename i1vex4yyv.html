@@ -5,7 +5,7 @@
     <script src="https://unpkg.com/three"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Courier New', monospace; transition: background 1s; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
         #radar-box {
             position: absolute; top: 20px; left: 20px;
             background: rgba(0, 30, 0, 0.9); color: #00ff00;
@@ -16,67 +16,41 @@
     </style>
 </head>
 <body>
-    <div id="radar-box">SISTEMA: A LOCALIZAR...</div>
+    <div id="radar-box">SISTEMA: A LIGAR...</div>
     <div id="globeViz"></div>
 
     <script>
-        const hora = new Date().getHours();
-        const eDia = hora >= 7 && hora < 19;
-        const corFundo = eDia ? '#87CEEB' : '#000000';
-        const imgTerra = eDia ? 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg' : 'https://unpkg.com/three-globe/example/img/earth-night.jpg';
-
-        document.body.style.background = corFundo;
-
         const world = Globe()(document.getElementById('globeViz'))
-            .globeImageUrl(imgTerra)
-            .backgroundColor(corFundo)
+            .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
+            .backgroundColor('#000000')
             .showAtmosphere(true)
             .atmosphereColor('#00ff00');
 
-        world.controls().autoRotate = true;
-        world.controls().autoRotateSpeed = 0.5;
-
-        async function iniciar() {
-            // 1. Obter dados do Worker (Bandeira e Cidade do IP)
-            let workerData = { city: "Localização", flag: "📍", lat: 0, lng: 0 };
+        async function carregar() {
             try {
-                const res = await fetch('https://globorau.carlos2022yes.workers.dev/');
-                workerData = await res.json();
-            } catch (e) { console.error("Erro worker"); }
+                // Forçamos o fetch para o TEU worker sem cache
+                const res = await fetch('https://globorau.carlos2022yes.workers.dev/?t=' + Date.now());
+                const d = await res.json();
+                
+                const local = `${d.flag} ${d.city.toUpperCase()}`;
+                document.getElementById('radar-box').innerHTML = `LOCALIZADO: ${local}`;
 
-            // 2. Tentar GPS para precisão real
-            if ("geolocation" in navigator) {
-                navigator.geolocation.getCurrentPosition((pos) => {
-                    renderizar(pos.coords.latitude, pos.coords.longitude, workerData.city, workerData.flag);
-                }, () => {
-                    // Se recusar GPS, usa os dados do Worker
-                    renderizar(workerData.latitude, workerData.longitude, workerData.city, workerData.flag);
-                });
+                // O PONTO VERDE COM O NOME
+                world.labelsData([{ lat: d.latitude, lng: d.longitude, text: local }])
+                    .labelColor(() => '#00ff00')
+                    .labelSize(3)
+                    .labelDotRadius(0.8);
+
+                world.ringsData([{ lat: d.latitude, lng: d.longitude }])
+                    .ringColor(() => '#00ff00')
+                    .ringMaxRadius(6);
+
+                world.pointOfView({ lat: d.latitude, lng: d.longitude, altitude: 2 }, 2000);
+            } catch (e) {
+                document.getElementById('radar-box').innerHTML = "ERRO DE CONEXÃO";
             }
         }
-
-        function renderizar(lat, lng, cidade, bandeira) {
-            const labelTexto = `${bandeira} ${cidade.toUpperCase()}`;
-            
-            document.getElementById('radar-box').innerHTML = `LOCALIZADO: ${labelTexto}`;
-
-            // Pontinho verde e texto no globo
-            world.labelsData([{ lat, lng, text: labelTexto }])
-                .labelColor(() => '#00ff00')
-                .labelSize(2)
-                .labelDotRadius(0.5) // O "pontinho verde" que pediste
-                .labelResolution(2);
-
-            // Anel pulsante verde
-            world.ringsData([{ lat, lng }])
-                .ringColor(() => '#00ff00')
-                .ringMaxRadius(5)
-                .ringPropagationSpeed(2);
-
-            world.pointOfView({ lat, lng, altitude: 2 }, 2000);
-        }
-
-        iniciar();
+        carregar();
     </script>
 </body>
 </html>
