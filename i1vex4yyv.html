@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v92 - EXTREME</title>
+    <title>RAU RADAR v94 - HARDWARE BOLT</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -31,9 +31,9 @@
 <body>
 
 <div class="hud">
-    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v92</div>
+    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v94</div>
     <div id="count" class="count">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A FORÇAR RASTREIO REAL...</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A LER SINAL DE SATÉLITE...</div>
 </div>
 
 <div id="globeViz"></div>
@@ -55,28 +55,44 @@
             return el;
         });
 
-    // MOTOR DE PRECISÃO EXTREMA (BigDataCloud + Ipify)
-    async function getExtremeLoc() {
-        try {
-            // Este serviço é especializado em "Locality-level precision"
-            const response = await fetch('https://api.bigdatacloud.net/data/reverse-geocode-client');
-            const d = await response.json();
-            
-            if (d.latitude) {
-                const geo = {
-                    lat: d.latitude,
-                    lng: d.longitude,
-                    city: (d.city || d.locality || "OSTEND").toUpperCase(),
-                    country: d.countryCode.toLowerCase()
-                };
-                startSync(geo);
-            }
-        } catch (e) {
-            document.getElementById('status').innerText = "ERRO DE SATÉLITE";
+    function initHardwareRadar() {
+        if (!navigator.geolocation) {
+            document.getElementById('status').innerText = "ERRO: HARDWARE INCOMPATÍVEL";
+            return;
         }
+
+        // FORÇA ALTA PRECISÃO (GPS)
+        const options = {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+        };
+
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            const { latitude, longitude } = pos.coords;
+            
+            // Tradução real das coordenadas para nome de localidade
+            let cityName = "LOCALIZAÇÃO REAL";
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`);
+                const data = await response.json();
+                cityName = (data.address.city || data.address.town || data.address.village || "OSTEND").toUpperCase();
+            } catch(e) {}
+
+            const geo = {
+                lat: latitude,
+                lng: longitude,
+                city: cityName,
+                country: "be"
+            };
+
+            startAbly(geo);
+        }, (err) => {
+            document.getElementById('status').innerText = "POR FAVOR, ATIVE O GPS NO BROWSER";
+        }, options);
     }
 
-    function startSync(geo) {
+    function startAbly(geo) {
         const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
         const channel = ably.channels.get('rau-live-radar');
 
@@ -102,7 +118,7 @@
 
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
-    getExtremeLoc();
+    initHardwareRadar();
 </script>
 </body>
 </html>
