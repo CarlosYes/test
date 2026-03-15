@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v171 - PURE INFRA</title>
+    <title>RAU RADAR v174 - RAW SENSOR</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -24,23 +24,23 @@
             white-space: nowrap; border: 1px solid #fff;
         }
         .d-rau { width: 14px; height: 14px; background: #fff; border-radius: 50%; margin-top: 5px; border: 2px solid #39ff14; animation: p 0.5s infinite alternate; }
-        @keyframes p { from { transform: scale(1); opacity: 1; } to { transform: scale(4.5); opacity: 0; } }
-        #infra-log { font-family: monospace; font-size: 10px; color: #39ff14; margin-top: 10px; border-top: 1px solid #39ff1444; padding-top: 5px; }
+        @keyframes p { from { transform: scale(1); opacity: 1; } to { transform: scale(4); opacity: 0; } }
+        #coords { font-family: monospace; font-size: 10px; color: #39ff14; margin-top: 5px; opacity: 0.8; }
     </style>
 </head>
 <body>
 
 <div class="hud">
-    <div style="font-size: 9px; letter-spacing: 5px; opacity: 0.7;">RAU SYSTEM v171</div>
+    <div style="font-size: 9px; letter-spacing: 5px; opacity: 0.7;">RAU SYSTEM v174</div>
     <div id="count" class="count">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A LER INFRAESTRUTURA PURA...</div>
-    <div id="infra-log">ISP: ANALISANDO | IP: --</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px;">LENDO HARDWARE...</div>
+    <div id="coords">LAT: -- | LNG: --</div>
 </div>
 
 <div id="globeViz"></div>
 
 <script>
-    const RAU_ID = 'NODE-' + Math.random().toString(36).substr(2, 5);
+    const RAU_ID = 'RAW-' + Math.random().toString(36).substr(2, 5);
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
 
     const world = Globe()(document.getElementById('globeViz'))
@@ -55,50 +55,56 @@
             return el;
         });
 
-    async function probe() {
+    async function getCityName(lat, lng) {
         try {
-            // Consulta direta ao IPAPI (um dos mais precisos para nós europeus)
-            const response = await fetch('https://ipapi.co/json/');
-            const data = await response.json();
-            
-            document.getElementById('infra-log').innerText = `ISP: ${data.org} | IP: ${data.ip}`;
-
-            const geo = {
-                lat: data.latitude,
-                lng: data.longitude,
-                city: (data.city || "DETECTION").toUpperCase(),
-                clientId: RAU_ID
-            };
-
-            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: RAU_ID });
-            const channel = ably.channels.get('rau-live-radar');
-
-            ably.connection.on('connected', () => {
-                document.getElementById('status').innerText = `LOCALIZAÇÃO REPORTADA: ${geo.city}`;
-                channel.presence.enter(geo);
-
-                const sync = () => {
-                    channel.presence.get((err, members) => {
-                        if (!err) {
-                            const nodes = Array.from(new Map(members.map(m => [m.clientId, m.data])).values());
-                            document.getElementById('count').innerText = nodes.length;
-                            world.htmlElementsData(nodes);
-                        }
-                    });
-                };
-                channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
-                sync();
-            });
-
-            world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.5 }, 2000);
-        } catch (e) {
-            document.getElementById('status').innerText = "ERRO DE INFRAESTRUTURA";
-        }
+            // Geocoding reverso: pergunta ao mapa que cidade é esta nestas coordenadas
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+            const data = await res.json();
+            return (data.address.city || data.address.town || data.address.village || "UNKNOWN").toUpperCase();
+        } catch (e) { return "SENSOR_ERROR"; }
     }
+
+    function initRadar(lat, lng, cityName) {
+        document.getElementById('coords').innerText = `LAT: ${lat.toFixed(4)} | LNG: ${lng.toFixed(4)}`;
+        document.getElementById('status').innerText = `DETETADO: ${cityName}`;
+        
+        const geo = { lat, lng, city: cityName, clientId: RAU_ID };
+        const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: RAU_ID });
+        const channel = ably.channels.get('rau-live-radar');
+
+        ably.connection.on('connected', () => {
+            channel.presence.enter(geo);
+            const sync = () => {
+                channel.presence.get((err, members) => {
+                    if (!err) {
+                        const nodes = Array.from(new Map(members.map(m => [m.clientId, m.data])).values());
+                        document.getElementById('count').innerText = nodes.length;
+                        world.htmlElementsData(nodes);
+                    }
+                });
+            };
+            channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
+            sync();
+        });
+        world.pointOfView({ lat, lng, altitude: 1.5 }, 2000);
+    }
+
+    navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+            const name = await getCityName(pos.coords.latitude, pos.coords.longitude);
+            initRadar(pos.coords.latitude, pos.coords.longitude, name);
+        },
+        async () => {
+            // Se falhar o hardware, ele volta ao IP (que provavelmente dirá Mechelen)
+            const res = await fetch('https://ipapi.co/json/');
+            const data = await res.json();
+            initRadar(data.latitude, data.longitude, data.city.toUpperCase());
+        },
+        { enableHighAccuracy: true }
+    );
 
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
-    probe();
 </script>
 </body>
 </html>
