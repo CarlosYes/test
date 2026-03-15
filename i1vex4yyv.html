@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v196 - CHRONOS</title>
+    <title>RAU RADAR v197 - STELLAR FOCUS</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -11,10 +11,10 @@
         body { margin: 0; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
         #globeViz { width: 100vw; height: 100vh; position: absolute; }
         
-        /* HUD Adaptável */
+        /* HUD Adaptável Chronos */
         .p-hud {
             position: absolute; top: 30px; left: 20px;
-            background: rgba(0,0,0,0.8); border-left: 2px solid #39ff14;
+            background: rgba(0,0,0,0.85); border-left: 2px solid #39ff14;
             padding: 12px 18px; color: #fff; z-index: 1000;
             border-radius: 0 4px 4px 0; backdrop-filter: blur(8px);
         }
@@ -22,11 +22,11 @@
         .p-time { font-size: 9px; color: #39ff14; font-family: monospace; margin-top: 2px; opacity: 0.8; }
         .p-live { color: #39ff14; font-size: 10px; font-family: monospace; margin-top: 6px; }
 
-        /* Marcadores */
+        /* Marcadores Néon */
         .m-rau { display: flex; flex-direction: column; align-items: center; pointer-events: none; }
         .m-tag { 
             display: flex; align-items: center; gap: 6px; 
-            background: rgba(0, 0, 0, 0.9); padding: 4px 8px; 
+            background: rgba(0, 0, 0, 0.95); padding: 4px 8px; 
             border: 1px solid #39ff14; border-radius: 2px; margin-bottom: 4px;
         }
         .m-flag { width: 16px; height: auto; }
@@ -52,21 +52,16 @@
 </div>
 
 <script>
-    const RAU_ID = 'CHRONOS-' + Math.random().toString(36).substr(2, 5);
+    const RAU_ID = 'STELLAR-' + Math.random().toString(36).substr(2, 5);
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
 
-    // Lógica de Tempo para o Globo
+    // Lógica de Tempo (Chronos)
     const hour = new Date().getHours();
     const isNight = hour < 6 || hour > 18;
     
-    // Imagens dinâmicas baseadas na hora
     const globeImage = isNight 
         ? '//unpkg.com/three-globe/example/img/earth-night.jpg' 
         : '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
-    
-    const backgroundImage = isNight
-        ? '//unpkg.com/three-globe/example/img/night-sky.png'
-        : null; // Fundo preto limpo de dia para contraste
 
     let archive = new Map();
 
@@ -74,7 +69,7 @@
         .globeImageUrl(globeImage)
         .backgroundColor('#000000')
         .showAtmosphere(true)
-        .atmosphereColor(isNight ? '#39ff14' : '#87CEEB') // Verde à noite, azul claro de dia
+        .atmosphereColor(isNight ? '#39ff14' : '#87CEEB')
         .htmlElement(d => {
             const el = document.createElement('div');
             el.className = 'm-rau';
@@ -94,13 +89,44 @@
             return el;
         });
 
-    if (backgroundImage) world.backgroundImageUrl(backgroundImage);
-
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
 
-    async function launchChronos() {
-        document.getElementById('time-text').innerText = isNight ? "MODE: NIGHT OPS" : "MODE: DAYLIGHT SCAN";
+    // --- NOVO MOTOR DE ESTRELAS ESTÁTICAS (Three.js) ---
+    const scene = world.scene();
+    
+    // Criação de 5000 estrelas estáticas e brilhantes
+    const starsGeometry = new THREE.BufferGeometry();
+    const starsMaterial = new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: 0.7,
+        sizeAttenuation: true, // Faz as estrelas parecerem reluzentes
+        transparent: true,
+        opacity: 0.9
+    });
+
+    const starsVertices = [];
+    for (let i = 0; i < 5000; i++) {
+        // Posicionamento aleatório num raio grande (afastado do globo)
+        const x = THREE.MathUtils.randFloatSpread(2000);
+        const y = THREE.MathUtils.randFloatSpread(2000);
+        const z = THREE.MathUtils.randFloatSpread(2000);
+        
+        // Garante que não estão dentro do globo
+        if (Math.sqrt(x*x + y*y + z*z) > 200) {
+            starsVertices.push(x, y, z);
+        }
+    }
+
+    starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
+    const starField = new THREE.Points(starsGeometry, starsMaterial);
+    
+    // Adiciona o campo de estrelas à cena, mas NÃO ao objeto do globo
+    scene.add(starField);
+    // ---------------------------------------------------
+
+    async function launchStellar() {
+        document.getElementById('time-text').innerText = isNight ? "MODE: NIGHT OPS (STELLAR)" : "MODE: DAYLIGHT SCAN";
         
         try {
             const res = await fetch('https://speed.cloudflare.com/meta');
@@ -154,7 +180,7 @@
         world.htmlElementsData(nodes.filter(n => n.lat !== undefined));
     }
 
-    launchChronos();
+    launchStellar();
 </script>
 </body>
 </html>
