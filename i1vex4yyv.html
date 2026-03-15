@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v105 - TRUTH SEEKER</title>
+    <title>RAU RADAR v107 - INDUSTRIAL</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -31,9 +31,9 @@
 <body>
 
 <div class="hud">
-    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v105</div>
+    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v107</div>
     <div id="count" class="count">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A RASTREAR LOCALIZAÇÃO REAL...</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A CONECTAR AO BACKEND...</div>
 </div>
 
 <div id="globeViz"></div>
@@ -55,67 +55,50 @@
             return el;
         });
 
-    async function getRealLocation() {
-        // Tentativa 1: Localização por Rede (Mais precisa que IP, menos invasiva que GPS)
-        if ("geolocation" in navigator) {
-            navigator.geolocation.getCurrentPosition(async (pos) => {
-                const { latitude, longitude } = pos.coords;
-                // Reverse Geocoding para obter o nome da cidade real (Ostende)
-                try {
-                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
-                    const data = await res.json();
-                    const city = (data.address.city || data.address.town || data.address.village || "OSTENDE").toUpperCase();
-                    setupRadar({ lat: latitude, lng: longitude, city: city, country: data.address.country_code });
-                } catch(e) { fallbackIP(); }
-            }, () => { fallbackIP(); }, { enableHighAccuracy: false, timeout: 5000 });
-        } else {
-            fallbackIP();
-        }
-    }
-
-    async function fallbackIP() {
-        // Se a rede falhar, usamos o IP mas com um motor que tenta filtrar o nó da operadora
+    async function initIndustrialRadar() {
         try {
-            const res = await fetch('https://ipapi.co/json/');
-            const d = await res.json();
-            setupRadar({
-                lat: d.latitude,
-                lng: d.longitude,
-                city: d.city.toUpperCase(),
-                country: d.country_code.toLowerCase()
-            });
-        } catch(e) {
-            document.getElementById('status').innerText = "ERRO DE CONEXÃO";
-        }
-    }
+            // MOTOR CLOUDFLARE SPEEDTEST - Sem limites, alta precisão, HTTPS nativo.
+            const response = await fetch('https://speed.cloudflare.com/meta');
+            const data = await response.json();
 
-    function setupRadar(geo) {
-        const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
-        const channel = ably.channels.get('rau-live-radar');
+            if (data.city) {
+                const geo = {
+                    lat: data.latitude,
+                    lng: data.longitude,
+                    city: data.city.toUpperCase(),
+                    country: data.country.toLowerCase()
+                };
 
-        ably.connection.on('connected', () => {
-            document.getElementById('status').innerText = `FIXADO: ${geo.city}`;
-            channel.presence.enter(geo);
+                const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
+                const channel = ably.channels.get('rau-live-radar');
 
-            const sync = () => {
-                channel.presence.get((err, members) => {
-                    if (!err) {
-                        const nodes = members.map(m => m.data).filter(x => x && x.lat);
-                        document.getElementById('count').innerText = nodes.length;
-                        world.htmlElementsData(nodes);
-                    }
+                ably.connection.on('connected', () => {
+                    document.getElementById('status').innerText = `LOCALIZADO: ${geo.city}`;
+                    channel.presence.enter(geo);
+
+                    const sync = () => {
+                        channel.presence.get((err, members) => {
+                            if (!err) {
+                                const nodes = members.map(m => m.data).filter(x => x && x.lat);
+                                document.getElementById('count').innerText = nodes.length;
+                                world.htmlElementsData(nodes);
+                            }
+                        });
+                    };
+                    channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
+                    sync();
                 });
-            };
-            channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
-            sync();
-        });
 
-        world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.8 }, 2000);
+                world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.8 }, 2000);
+            }
+        } catch (e) {
+            document.getElementById('status').innerText = "ERRO NA INFRAESTRUTURA";
+        }
     }
 
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
-    getRealLocation();
+    initIndustrialRadar();
 </script>
 </body>
 </html>
