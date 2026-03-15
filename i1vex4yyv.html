@@ -5,93 +5,73 @@
     <script src="https://unpkg.com/three"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
-        #radar {
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Arial', sans-serif; }
+        #info-painel {
             position: absolute; top: 20px; left: 20px;
-            background: rgba(0, 15, 0, 0.9); color: #00ff00;
-            padding: 15px; border: 1px solid #00ff00;
-            z-index: 100; font-size: 13px; box-shadow: 0 0 20px rgba(0,255,0,0.3);
-            border-radius: 4px; pointer-events: none;
+            background: rgba(0, 50, 0, 0.9); color: #00ff00;
+            padding: 15px; border: 2px solid #00ff00;
+            z-index: 100; font-size: 18px; font-weight: bold;
+            box-shadow: 0 0 15px #00ff00; border-radius: 5px;
         }
     </style>
 </head>
 <body>
 
-    <div id="radar">SISTEMA ATMOSFÉRICO: ONLINE...</div>
+    <div id="info-painel">A LOCALIZAR VISITANTE...</div>
     <div id="globeViz"></div>
 
     <script>
-        // 1. Configuração do Globo com Camadas Reais
         const world = Globe()(document.getElementById('globeViz'))
             .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
             .nightImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
-            .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
             .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
             .showAtmosphere(true)
-            .atmosphereColor('#3a228a')
-            .atmosphereAltitude(0.18);
+            .atmosphereColor('#3a228a');
 
-        // 2. Adicionar Camada de Nuvens Dinâmicas
-        const CLOUDS_IMG_URL = 'https://unpkg.com/three-globe/example/img/earth-clouds.png';
-        const CLOUDS_ALT = 0.004;
-        const CLOUDS_ROTATION_SPEED = -0.006; // graus por frame
-
-        new THREE.TextureLoader().load(CLOUDS_IMG_URL, cloudsTexture => {
-            const clouds = new THREE.Mesh(
-                new THREE.SphereGeometry(world.getGlobeRadius() * (1 + CLOUDS_ALT), 75, 75),
-                new THREE.MeshPhongMaterial({ map: cloudsTexture, transparent: true })
-            );
-            world.scene().add(clouds);
-
-            (function rotateClouds() {
-                clouds.rotation.y += CLOUDS_ROTATION_SPEED * Math.PI / 180;
-                requestAnimationFrame(rotateClouds);
-            })();
-        });
-
-        // 3. Configurar Iluminação Solar
+        // Iluminação para o ciclo dia/noite ser visível
         const scene = world.scene();
-        const sunLight = new THREE.DirectionalLight(0xffffff, 1.8);
-        sunLight.position.set(1, 1, 1);
-        scene.add(sunLight);
-        scene.add(new THREE.AmbientLight(0xbbbbbb, 0.3));
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+        sun.position.set(1, 1, 1);
+        scene.add(sun);
 
         world.controls().autoRotate = true;
-        world.controls().autoRotateSpeed = 0.4;
+        world.controls().autoRotateSpeed = 0.5;
 
-        // 4. Identificação Real via Cloudflare + IPWhois
-        async function radar() {
+        // FUNÇÃO QUE NÃO FALHA: Captura Cidade e Bandeira
+        async function obterLocalizacao() {
             try {
-                const cf = await fetch('https://www.cloudflare.com/cdn-cgi/trace').then(r => r.text());
-                const ip = cf.match(/ip=(.*)/)[1];
-                const res = await fetch(`https://ipwho.is/${ip}`);
-                const data = await res.json();
+                // Usando a API ip-api (versão JSON que é muito estável)
+                const response = await fetch('https://ipapi.co/json/');
+                const data = await response.json();
 
-                if (data.success) {
+                if (data.city) {
+                    // Gerar a Bandeira Emoji através do código do país
                     const flag = data.country_code.toUpperCase().replace(/./g, char => 
                         String.fromCodePoint(char.charCodeAt(0) + 127397)
                     );
 
-                    const info = `${flag} ${data.city}, ${data.country}`;
-                    document.getElementById('radar').innerHTML = `ALVO: ${info}<br>CLIMA: DINÂMICO`;
+                    const resultado = `${flag} ${data.city}, ${data.country_name}`;
+                    
+                    // MOSTRA NO PAINEL (O que tu pediste)
+                    document.getElementById('info-painel').innerHTML = `VISITANTE DE: ${resultado}`;
 
-                    world.labelsData([{ lat: data.latitude, lng: data.longitude, text: info }])
-                        .labelSize(2.8)
-                        .labelColor(() => '#00ff00')
-                        .labelDotRadius(0.8);
+                    // MOSTRA NO GLOBO
+                    world.labelsData([{ lat: data.latitude, lng: data.longitude, text: resultado }])
+                        .labelSize(3)
+                        .labelColor(() => '#00ff00');
 
                     world.ringsData([{ lat: data.latitude, lng: data.longitude }])
-                        .ringColor(() => '#00ff00')
-                        .ringMaxRadius(4);
+                        .ringColor(() => '#00ff00');
 
-                    world.pointOfView({ lat: data.latitude, lng: data.longitude, altitude: 2 }, 3000);
+                    world.pointOfView({ lat: data.latitude, lng: data.longitude, altitude: 2 }, 2000);
                 }
-            } catch (err) {
-                document.getElementById('radar').innerText = "RADAR: LIGAÇÃO INSTÁVEL";
+            } catch (e) {
+                document.getElementById('info-painel').innerHTML = "ERRO NA LIGAÇÃO AO SATÉLITE";
             }
         }
 
-        radar();
+        obterLocalizacao();
 
         window.addEventListener('resize', () => {
             world.width(window.innerWidth);
