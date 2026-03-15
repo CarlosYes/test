@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v82 - FINAL CORE</title>
+    <title>RAU RADAR v83 - NOMAD</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Arial Black', sans-serif; background: #87CEEB; }
-        #globeViz { width: 100vw; height: 100vh; position: absolute; }
+        #globeViz { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; }
+        
         .hud {
             position: absolute; top: 25px; left: 25px; z-index: 1000;
             background: rgba(0, 0, 0, 0.95); border: 2px solid #39ff14;
@@ -18,6 +19,8 @@
         }
         .v-tag { font-size: 10px; letter-spacing: 5px; color: #39ff14; margin-bottom: 5px; }
         .count-big { font-size: 110px; font-weight: 900; color: #fff; line-height: 0.7; letter-spacing: -8px; }
+        
+        /* ETIQUETA VERDE - BANDEIRA + CIDADE */
         .m-rau { display: flex; flex-direction: column; align-items: center; }
         .l-rau {
             background: #39ff14; color: #000; padding: 6px 14px; 
@@ -28,78 +31,76 @@
         .d-rau { 
             width: 14px; height: 14px; background: #fff; border-radius: 50%; 
             margin-top: 6px; border: 3px solid #39ff14; 
-            animation: pulse-v82 1.2s infinite ease-out; 
+            animation: pulse-v83 1.2s infinite ease-out; 
         }
-        @keyframes pulse-v82 { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(4); opacity: 0; } }
+        @keyframes pulse-v83 { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(4); opacity: 0; } }
     </style>
 </head>
 <body>
 
 <div class="hud">
-    <div class="v-tag">RAU SYSTEM v82</div>
+    <div class="v-tag">RAU SYSTEM v83</div>
     <div id="user-count-hud" class="count-big">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 15px; font-family: monospace; border-top: 2px solid #39ff14; padding-top: 8px;">A RASTREAR LOCALIZAÇÃO...</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 15px; font-family: monospace; border-top: 2px solid #39ff14; padding-top: 8px;">A RASTREAR...</div>
 </div>
 
 <div id="globeViz"></div>
 
 <script>
-    // 1. CONFIGURAÇÕES FIXAS
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
-    const SESSION_ID = 'RAU-V82-' + Math.random().toString(36).substr(2, 5);
+    const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 5);
 
-    // 2. O MOTOR QUE MANDA EM TUDO
-    window.renderSystem = function(data) {
-        if (data.status !== 'success') {
-            document.getElementById('status').innerText = "ERRO: FALHA NO SATÉLITE";
-            return;
-        }
+    // 1. O GLOBO CARREGA PRIMEIRO (SEM MEDO)
+    const world = Globe()(document.getElementById('globeViz'))
+        .globeImageUrl('//unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
+        .backgroundColor('#87CEEB')
+        .showAtmosphere(true)
+        .atmosphereColor('#39ff14')
+        .htmlElement(d => {
+            const el = document.createElement('div');
+            el.className = 'm-rau';
+            const flagUrl = `https://flagcdn.com/w40/${d.countryCode.toLowerCase()}.png`;
+            el.innerHTML = `<div class="l-rau"><img src="${flagUrl}"><span>${d.city.toUpperCase()}</span></div><div class="d-rau"></div>`;
+            return el;
+        });
 
-        document.getElementById('status').innerText = `FIX: ${data.city.toUpperCase()}`;
+    world.controls().autoRotate = true;
+    world.controls().autoRotateSpeed = 0.5;
 
-        // Desenha o Globo apenas após ter os dados
-        const world = Globe()(document.getElementById('globeViz'))
-            .globeImageUrl('//unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
-            .backgroundColor('#87CEEB')
-            .showAtmosphere(true)
-            .atmosphereColor('#39ff14')
-            .htmlElement(d => {
-                const el = document.createElement('div');
-                el.className = 'm-rau';
-                const flagUrl = `https://flagcdn.com/w40/${d.countryCode.toLowerCase()}.png`;
-                el.innerHTML = `<div class="l-rau"><img src="${flagUrl}"><span>${d.city.toUpperCase()}</span></div><div class="d-rau"></div>`;
-                return el;
+    // 2. MOTOR DE LOCALIZAÇÃO (ATUA POR CIMA)
+    window.updatePos = function(data) {
+        if (data.status === 'success') {
+            document.getElementById('status').innerText = `FIX: ${data.city.toUpperCase()}`;
+            
+            const myLoc = { lat: data.lat, lng: data.lon, city: data.city, countryCode: data.countryCode };
+            
+            // Ligar ao Ably
+            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
+            const channel = ably.channels.get('rau-v83-live');
+
+            ably.connection.on('connected', () => {
+                channel.presence.enter(myLoc);
+                const sync = () => {
+                    channel.presence.get((err, members) => {
+                        if (!err) {
+                            const users = members.map(m => m.data).filter(x => x && x.lat);
+                            document.getElementById('user-count-hud').innerText = users.length;
+                            world.htmlElementsData(users);
+                        }
+                    });
+                };
+                channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
+                sync();
             });
 
-        world.controls().autoRotate = true;
-        world.controls().autoRotateSpeed = 0.5;
-        world.pointOfView({ lat: data.lat, lng: data.lon, altitude: 2 }, 2000);
-
-        // Conecta ao Ably
-        const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
-        const channel = ably.channels.get('rau-v82-live');
-        const myLoc = { lat: data.lat, lng: data.lon, city: data.city, countryCode: data.countryCode };
-
-        ably.connection.on('connected', () => {
-            channel.presence.enter(myLoc);
-            const sync = () => {
-                channel.presence.get((err, members) => {
-                    if (!err) {
-                        const activeUsers = members.map(m => m.data).filter(x => x && x.lat);
-                        document.getElementById('user-count-hud').innerText = activeUsers.length;
-                        world.htmlElementsData(activeUsers);
-                    }
-                });
-            };
-            channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
-            sync();
-        });
+            world.pointOfView({ lat: data.lat, lng: data.lon, altitude: 2 }, 2000);
+        }
     };
 
-    // 3. DISPARO ÚNICO E FORÇADO
-    const apiScript = document.createElement('script');
-    apiScript.src = 'https://ip-api.com/json/?callback=renderSystem&t=' + Date.now();
-    document.body.appendChild(apiScript);
+    // Chamada imediata do IP-API
+    const script = document.createElement('script');
+    script.src = 'https://ip-api.com/json/?callback=updatePos&t=' + Date.now();
+    document.body.appendChild(script);
 </script>
 </body>
 </html>
