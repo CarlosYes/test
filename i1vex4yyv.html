@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v191 - GHOST SENSOR</title>
+    <title>RAU RADAR v193 - GLOBAL MESH</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -11,39 +11,39 @@
         body { margin: 0; background: #000; overflow: hidden; font-family: 'Arial', sans-serif; }
         #globeViz { width: 100vw; height: 100vh; position: absolute; }
         
-        /* HUD Minimalista */
+        /* HUD Superior Esquerdo */
         .p-hud {
-            position: absolute; bottom: 20px; left: 20px;
+            position: absolute; top: 20px; left: 20px;
             background: rgba(0,0,0,0.9); border-left: 3px solid #39ff14;
             padding: 10px 18px; color: #fff; z-index: 1000;
-            border-radius: 0 4px 4px 0; box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            border-radius: 0 4px 4px 0; box-shadow: 0 5px 20px rgba(0,0,0,0.5);
         }
-        .p-city { font-size: 13px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; }
-        .p-status { color: #39ff14; font-size: 10px; font-family: monospace; margin-top: 4px; display: flex; gap: 10px; }
+        .p-city { font-size: 14px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; }
+        .p-stats { margin-top: 5px; display: flex; gap: 12px; font-family: monospace; font-size: 11px; }
+        .stat-on { color: #39ff14; }
+        .stat-off { color: #ff3131; }
 
-        /* Marcadores Dinâmicos */
-        .m-rau { display: flex; flex-direction: column; align-items: center; pointer-events: none; width: 120px; }
+        /* Marcadores Globais */
+        .m-rau { display: flex; flex-direction: column; align-items: center; pointer-events: none; }
 
-        /* Etiqueta (Só aparece para Ativos) */
+        /* Etiqueta para TODOS os Online */
         .m-tag { 
             display: flex; align-items: center; gap: 6px; 
-            background: rgba(0, 0, 0, 0.9); padding: 3px 8px; 
-            border: 1px solid #39ff14; border-radius: 3px;
-            margin-bottom: 4px;
+            background: rgba(0, 0, 0, 0.9); padding: 3px 7px; 
+            border: 1px solid #39ff14; border-radius: 3px; margin-bottom: 3px;
+            box-shadow: 0 0 10px #000;
         }
-        .m-flag { width: 18px; height: 12px; object-fit: cover; }
-        .m-city { color: #fff; font-size: 10px; font-weight: 900; white-space: nowrap; }
+        .m-flag { width: 16px; height: 11px; object-fit: cover; }
+        .m-city { color: #fff; font-size: 9px; font-weight: 900; white-space: nowrap; }
         
-        /* Ponto Verde (Ativo) */
         .dot-active { 
             width: 6px; height: 6px; background: #39ff14; border-radius: 50%; 
-            box-shadow: 0 0 12px #39ff14, 0 0 4px #fff; border: 1px solid #fff;
+            box-shadow: 0 0 10px #39ff14, 0 0 3px #fff; border: 1px solid #fff;
         }
 
-        /* Ponto Vermelho (Fantasma/Saiu) */
         .dot-ghost { 
-            width: 4px; height: 4px; background: #8b0000; border-radius: 50%; 
-            box-shadow: 0 0 6px #8b0000; border: 1px solid #440000; opacity: 0.8;
+            width: 4px; height: 4px; background: #660000; border-radius: 50%; 
+            box-shadow: 0 0 5px #440000; opacity: 0.8;
         }
     </style>
 </head>
@@ -52,19 +52,18 @@
 <div id="globeViz"></div>
 
 <div class="p-hud">
-    <div id="city-out" class="p-city">DETECTING...</div>
-    <div class="p-status">
-        <span>ONLINE: <b id="count">0</b></span>
-        <span style="color: #ff3131;">GHOSTS: <b id="ghost-count">0</b></span>
+    <div id="my-loc" class="p-city">SCANNING...</div>
+    <div class="p-stats">
+        <div class="stat-on">LIVE: <span id="count">0</span></div>
+        <div class="stat-off">GHOSTS: <span id="ghost-count">0</span></div>
     </div>
 </div>
 
 <script>
-    const RAU_ID = 'RAU-' + Math.random().toString(36).substr(2, 5);
+    const RAU_ID = 'RAU-NET-' + Math.random().toString(36).substr(2, 5);
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
 
-    // Base de dados local de nós (Ativos e Fantasmas)
-    let nodesMap = new Map();
+    let archive = new Map();
 
     const world = Globe()(document.getElementById('globeViz'))
         .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
@@ -76,16 +75,15 @@
             el.className = 'm-rau';
             
             if (d.status === 'active') {
-                const countryCode = (d.country || 'be').toLowerCase();
+                const cCode = (d.country || 'be').toLowerCase();
                 el.innerHTML = `
                     <div class="m-tag">
-                        <img src="https://flagcdn.com/w40/${countryCode}.png" class="m-flag">
+                        <img src="https://flagcdn.com/w40/${cCode}.png" class="m-flag">
                         <span class="m-city">${d.city}</span>
                     </div>
                     <div class="dot-active"></div>
                 `;
             } else {
-                // Se for fantasma, apenas o ponto vermelho pequeno
                 el.innerHTML = `<div class="dot-ghost"></div>`;
             }
             return el;
@@ -94,12 +92,12 @@
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
 
-    async function init() {
+    async function startSystem() {
         try {
             const res = await fetch('https://speed.cloudflare.com/meta');
             const data = await res.json();
             
-            const myGeo = {
+            const myData = {
                 lat: data.latitude,
                 lng: data.longitude,
                 city: (data.city || "NODE").toUpperCase(),
@@ -107,59 +105,48 @@
                 status: 'active'
             };
 
-            document.getElementById('city-out').innerText = myGeo.city;
+            document.getElementById('my-loc').innerText = myData.city;
 
             const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: RAU_ID });
             const channel = ably.channels.get('rau-live-radar');
 
             ably.connection.on('connected', () => {
-                channel.presence.enter(myGeo);
+                channel.presence.enter(myData);
 
-                // Subscrever a todos os eventos de presença
                 channel.presence.subscribe(msg => {
                     const { action, clientId, data } = msg;
-                    
-                    if (action === 'enter' || action === 'present' || action === 'update') {
-                        nodesMap.set(clientId, { ...data, status: 'active' });
-                    } 
-                    else if (action === 'leave') {
-                        // Quando sai, mantém os dados mas muda o status para fantasma
-                        const lastData = nodesMap.get(clientId);
-                        if (lastData) {
-                            nodesMap.set(clientId, { ...lastData, status: 'ghost' });
-                        }
+                    if (['enter', 'present', 'update'].includes(action)) {
+                        archive.set(clientId, { ...data, status: 'active' });
+                    } else if (action === 'leave') {
+                        const prev = archive.get(clientId);
+                        if (prev) archive.set(clientId, { ...prev, status: 'ghost' });
                     }
-                    updateDisplay();
+                    syncUI();
                 });
 
-                // Sincronização Inicial
                 channel.presence.get((err, members) => {
                     if (!err) {
-                        members.forEach(m => nodesMap.set(m.clientId, { ...m.data, status: 'active' }));
-                        updateDisplay();
+                        members.forEach(m => archive.set(m.clientId, { ...m.data, status: 'active' }));
+                        syncUI();
                     }
                 });
             });
 
-            world.pointOfView({ lat: myGeo.lat, lng: myGeo.lng, altitude: 2 }, 1500);
+            world.pointOfView({ lat: myData.lat, lng: myData.lng, altitude: 2 }, 1500);
 
         } catch (e) {
-            document.getElementById('city-out').innerText = "LINK ERROR";
+            document.getElementById('my-loc').innerText = "LINK FAILED";
         }
     }
 
-    function updateDisplay() {
-        const allNodes = Array.from(nodesMap.values());
-        const activeCount = allNodes.filter(n => n.status === 'active').length;
-        const ghostCount = allNodes.filter(n => n.status === 'ghost').length;
-
-        document.getElementById('count').innerText = activeCount;
-        document.getElementById('ghost-count').innerText = ghostCount;
-        
-        world.htmlElementsData(allNodes.filter(n => n.lat && n.lng));
+    function syncUI() {
+        const data = Array.from(archive.values());
+        document.getElementById('count').innerText = data.filter(n => n.status === 'active').length;
+        document.getElementById('ghost-count').innerText = data.filter(n => n.status === 'ghost').length;
+        world.htmlElementsData(data.filter(n => n.lat));
     }
 
-    init();
+    startSystem();
 </script>
 </body>
 </html>
