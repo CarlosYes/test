@@ -3,33 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v184 - VPN CRACKER</title>
+    <title>RAU RADAR v185 - INDESTRUCTIBLE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
-        body { margin: 0; padding: 0; background: #000; overflow: hidden; font-family: 'Arial', sans-serif; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
         #globeViz { width: 100vw; height: 100vh; position: absolute; }
         
         .player-hud {
             position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            width: 90%; max-width: 500px;
-            background: rgba(10, 10, 10, 0.9); border: 1px solid #39ff14;
-            border-radius: 8px; padding: 12px 20px;
+            width: 85%; max-width: 500px;
+            background: rgba(0, 0, 0, 0.9); border: 1px solid #39ff14;
+            border-radius: 10px; padding: 15px 25px;
             display: flex; align-items: center; justify-content: space-between;
             backdrop-filter: blur(10px); z-index: 1000;
-            box-shadow: 0 0 20px rgba(57, 255, 20, 0.2);
         }
 
         .info { display: flex; flex-direction: column; }
-        .city { color: #fff; font-size: 16px; font-weight: 900; text-transform: uppercase; }
-        .method { color: #39ff14; font-size: 9px; font-family: monospace; letter-spacing: 1px; }
+        .city { color: #fff; font-size: 18px; font-weight: 900; text-transform: uppercase; }
+        .status-msg { color: #39ff14; font-size: 10px; font-family: monospace; margin-top: 2px; }
         
-        .count-box { background: #39ff14; color: #000; padding: 5px 12px; border-radius: 4px; font-weight: bold; }
+        .count-tag { background: #39ff14; color: #000; padding: 4px 10px; border-radius: 4px; font-weight: bold; }
 
-        /* Marcadores Estilo Radar */
         .m-rau { pointer-events: none; }
-        .l-rau { background: #000; color: #39ff14; padding: 3px 8px; border: 1px solid #39ff14; border-radius: 3px; font-size: 10px; font-weight: bold; }
+        .l-rau { background: #000; color: #39ff14; padding: 4px 8px; border: 1px solid #39ff14; border-radius: 4px; font-size: 10px; font-weight: 900; }
     </style>
 </head>
 <body>
@@ -38,14 +36,14 @@
 
 <div class="player-hud">
     <div class="info">
-        <div id="city" class="city">TRACING VPN...</div>
-        <div id="method" class="method">BYPASSING STALE DATA</div>
+        <div id="city" class="city">A INICIALIZAR...</div>
+        <div id="status" class="status-msg">A PROCURAR SINAL (REDUNDÂNCIA ATIVA)</div>
     </div>
-    <div class="count-box">LIVE: <span id="count">0</span></div>
+    <div class="count-tag" id="count">0</div>
 </div>
 
 <script>
-    const RAU_ID = 'VPN-CRACK-' + Math.random().toString(36).substr(2, 5);
+    const RAU_ID = 'RAU-IND-' + Math.random().toString(36).substr(2, 5);
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
 
     const world = Globe()(document.getElementById('globeViz'))
@@ -63,25 +61,38 @@
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
 
-    async function deepTrace() {
+    async function fetchGeo() {
+        // Redundância 1: BigDataCloud
         try {
-            // Usamos o serviço de traço da Cloudflare que é o mais difícil de enganar com VPNs
-            const traceReq = await fetch('https://www.cloudflare.com/cdn-cgi/trace');
-            const traceData = await traceReq.text();
-            
-            // Tentamos obter a localização via IP-API mas com filtro de frescura
-            const res = await fetch('https://ipapi.co/json/');
-            const d = await res.json();
+            const r = await fetch('https://api.bigdatacloud.net/data/reverse-geocode-client');
+            const d = await r.json();
+            if (d.latitude) return { lat: d.latitude, lng: d.longitude, city: (d.city || d.locality).toUpperCase() };
+        } catch(e) {}
 
-            let city = d.city.toUpperCase();
-            let lat = d.latitude;
-            let lng = d.longitude;
+        // Redundância 2: IP-API (Fallback)
+        try {
+            const r = await fetch('https://ipapi.co/json/');
+            const d = await r.json();
+            if (d.latitude) return { lat: d.latitude, lng: d.longitude, city: d.city.toUpperCase() };
+        } catch(e) {}
 
-            // Se o sistema detectar que estás numa VPN (pela latência ou ISP conhecido), ele tenta corrigir
-            document.getElementById('city').innerText = city;
-            document.getElementById('method').innerText = `VPN NODE: ${d.org.split(' ')[0]}`;
+        // Redundância 3: Localização de IP direta (Extremo)
+        try {
+            const r = await fetch('https://ip-api.com/json/');
+            const d = await r.json();
+            if (d.lat) return { lat: d.lat, lng: d.lon, city: d.city.toUpperCase() };
+        } catch(e) {}
 
-            const geo = { lat, lng, city, clientId: RAU_ID };
+        return null;
+    }
+
+    async function start() {
+        const geo = await fetchGeo();
+
+        if (geo) {
+            document.getElementById('city').innerText = geo.city;
+            document.getElementById('status').innerText = "CONEXÃO ESTÁVEL";
+
             const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: RAU_ID });
             const channel = ably.channels.get('rau-live-radar');
 
@@ -100,14 +111,14 @@
                 sync();
             });
 
-            world.pointOfView({ lat, lng, altitude: 2 }, 2000);
-
-        } catch (e) {
-            document.getElementById('city').innerText = "TRACE FAILED";
+            world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 2 }, 2000);
+        } else {
+            document.getElementById('city').innerText = "SINAL BLOQUEADO";
+            document.getElementById('status').innerText = "VERIFIQUE FIREWALL/VPN";
         }
     }
 
-    deepTrace();
+    start();
 </script>
 </body>
 </html>
