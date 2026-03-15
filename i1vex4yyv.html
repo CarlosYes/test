@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v60 - LIVE</title>
+    <title>RAU RADAR v60 - TOTAL LIVE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -18,7 +18,7 @@
         }
         .count-big { font-size: 80px; font-weight: 900; color: #fff; line-height: 0.8; letter-spacing: -5px; }
         
-        /* ETIQUETA NO GLOBO */
+        /* ETIQUETA NO GLOBO - CONFIGURAÇÃO GUARDADA */
         .m-rau { display: flex; flex-direction: column; align-items: center; }
         .l-rau {
             background: #39ff14; color: #000; padding: 4px 10px; border-radius: 2px;
@@ -47,7 +47,7 @@
 <div id="globeViz"></div>
 
 <script>
-    // 1. Lógica Dia/Noite (Fundo Azul se for Dia)
+    // 1. Configuração Dia/Noite (Agora são 20:34 = NOITE / Fundo Preto)
     const hora = new Date().getHours();
     const eDia = hora >= 7 && hora < 19;
     const corFundo = eDia ? '#87CEEB' : '#000000';
@@ -66,7 +66,7 @@
             const el = document.createElement('div');
             el.className = 'm-rau';
             const flagUrl = `https://flagcdn.com/w40/${d.countryCode.toLowerCase()}.png`;
-            // Etiqueta com Bandeira + Cidade + (O contador é atualizado via HUD, mas aqui mostramos a info do user)
+            // Etiqueta com Bandeira + Nome da Cidade
             el.innerHTML = `
                 <div class="l-rau">
                     <img src="${flagUrl}">
@@ -78,7 +78,7 @@
 
     async function init() {
         try {
-            // Localização precisa via HTTPS
+            // Localização precisa via HTTPS (ipapi.co)
             const res = await fetch('https://ipapi.co/json/');
             const geo = await res.json();
 
@@ -95,15 +95,18 @@
 
                 ably.connection.on('connected', () => {
                     document.getElementById('status').innerText = `FIXADO: ${geo.city.toUpperCase()}`;
+                    // Entra na rede com os teus dados
                     channel.presence.enter(myData);
 
+                    // Escuta todos os utilizadores (conexões)
                     const updatePresence = () => {
                         channel.presence.get((err, members) => {
                             if (!err) {
+                                // Lista de todos os ligados
                                 const activeUsers = members.map(m => m.data).filter(x => x && x.lat);
-                                // Atualiza o contador no HUD
+                                // Atualiza o contador de visitas total no HUD
                                 document.getElementById('user-count-hud').innerText = activeUsers.length;
-                                // Desenha todos os utilizadores (pontos verdes) no globo
+                                // Coloca todas as etiquetas (Cidade + Bandeira) no globo
                                 world.htmlElementsData(activeUsers);
                             }
                         });
@@ -113,10 +116,11 @@
                     updatePresence();
                 });
 
+                // Foca na tua posição inicial
                 world.pointOfView({ lat: geo.latitude, lng: geo.longitude, altitude: 1.8 }, 2000);
             }
         } catch (e) {
-            document.getElementById('status').innerText = "ERRO DE CONEXÃO";
+            document.getElementById('status').innerText = "ERRO DE SINCRONIZAÇÃO";
         }
     }
 
