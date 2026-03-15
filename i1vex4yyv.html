@@ -2,71 +2,23 @@
 <html lang="pt-pt">
 <head>
     <meta charset="UTF-8">
-    <title>Radar de Visitantes</title>
-    <script src="https://unpkg.com/globe.gl"></script>
+    <title>Radar Radio dos Amigos Unidos</title>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
-        #globeViz { width: 100vw; height: 100vh; }
-        .monitor {
-            position: absolute; top: 20px; left: 20px;
-            background: rgba(0, 0, 0, 0.8); color: #00ff00;
-            padding: 15px; border: 1px solid #00ff00;
-            border-radius: 4px; z-index: 100;
-            font-family: monospace; font-size: 14px;
+        body { margin: 0; background-color: #000; overflow: hidden; }
+        #map-container { 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            width: 100vw; 
         }
     </style>
 </head>
 <body>
 
-    <div class="monitor" id="out">AGUARDANDO CONEXÃO...</div>
-    <div id="globeViz"></div>
+    <div id="map-container">
+        <script type="text/javascript" src="https://public.revolvermaps.com/js/r.js.php?i=5b09mcl7867&amp;m=7&amp;c=ff0000&amp;cr1=ffffff&amp;f=arial&amp;l=0&amp;bv=90&amp;lx=-420&amp;ly=420&amp;hi=20&amp;he=7&amp;hc=a8ddff&amp;rs=80"></script>
+    </div>
 
-    <script>
-        const world = Globe()(document.getElementById('globeViz'))
-            .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
-            .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
-            .labelSize(3)
-            .labelColor(() => '#00ff00')
-            .ringColor(() => '#00ff00')
-            .ringMaxRadius(5);
-
-        world.controls().autoRotate = true;
-
-        async function rastrear() {
-            try {
-                // Usando ipwho.is que é mais rápida e estável para GitHub Pages
-                const res = await fetch('https://ipwho.is/');
-                const data = await res.json();
-
-                if(data.success) {
-                    const flag = data.country_code.toUpperCase().replace(/./g, char => 
-                        String.fromCodePoint(char.charCodeAt(0) + 127397)
-                    );
-
-                    const local = `${flag} ${data.city}, ${data.country}`;
-                    document.getElementById('out').innerHTML = `LOCALIZADO: ${local}`;
-
-                    // Marcação no globo
-                    world.labelsData([{ lat: data.latitude, lng: data.longitude, text: local }]);
-                    world.ringsData([{ lat: data.latitude, lng: data.longitude }]);
-                    
-                    // Zoom para a localização real
-                    world.pointOfView({ lat: data.latitude, lng: data.longitude, altitude: 2 }, 2000);
-                } else {
-                    document.getElementById('out').innerText = "ERRO: LIMITE DE REDE ATINGIDO.";
-                }
-            } catch (e) {
-                document.getElementById('out').innerText = "ERRO DE LIGAÇÃO À API.";
-                console.error(e);
-            }
-        }
-
-        rastrear();
-
-        window.addEventListener('resize', () => {
-            world.width(window.innerWidth);
-            world.height(window.innerHeight);
-        });
-    </script>
 </body>
 </html>
