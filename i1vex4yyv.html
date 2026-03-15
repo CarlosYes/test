@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v164 - PHYSICAL TRACE</title>
+    <title>RAU RADAR v165 - SILENT BYPASS</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -25,23 +25,23 @@
         }
         .d-rau { width: 14px; height: 14px; background: #fff; border-radius: 50%; margin-top: 5px; border: 2px solid #39ff14; animation: p 0.6s infinite alternate; }
         @keyframes p { from { transform: scale(1); opacity: 1; } to { transform: scale(4.5); opacity: 0; } }
-        #net-log { font-family: monospace; font-size: 10px; color: #39ff14; margin-top: 10px; opacity: 0.8; border-top: 1px solid #39ff1444; padding-top: 5px; }
+        #log { font-family: monospace; font-size: 10px; color: #39ff14; margin-top: 10px; opacity: 0.7; }
     </style>
 </head>
 <body>
 
 <div class="hud">
-    <div style="font-size: 9px; letter-spacing: 5px; opacity: 0.7;">RAU SYSTEM v164</div>
+    <div style="font-size: 9px; letter-spacing: 5px; opacity: 0.7;">RAU SYSTEM v165</div>
     <div id="count" class="count">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A RASTREAR ORIGEM FÍSICA...</div>
-    <div id="net-log">NODE: -- | AS: --</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A ESTABILIZAR ROTA...</div>
+    <div id="log">IDENTIFICANDO NÓ...</div>
 </div>
 
 <div id="globeViz"></div>
 
 <script>
-    // ID de sessão único para limpar fantasmas instantaneamente
-    const RAU_SESSION_ID = 'SESSION-' + Math.random().toString(36).substr(2, 5);
+    // Geramos um ID que se mantém durante a sessão para evitar duplicados
+    const RAU_ID = 'RAU-NODE-' + Math.random().toString(36).substr(2, 5);
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
 
     const world = Globe()(document.getElementById('globeViz'))
@@ -58,38 +58,34 @@
 
     async function launch() {
         try {
-            // Usamos o trace da Cloudflare que mostra o PoP (Point of Presence) real
-            const traceRes = await fetch('https://1.1.1.1/cdn-cgi/trace');
-            const traceText = await traceRes.text();
-            const traceData = Object.fromEntries(traceText.split('\n').map(l => l.split('=')));
-            
-            // Agora consultamos a localização baseada no nó de infraestrutura, não apenas no IP
-            const metaRes = await fetch('https://speed.cloudflare.com/meta?cb=' + Date.now());
-            const metaData = await metaRes.json();
-
-            document.getElementById('net-log').innerText = `NODE: ${traceData.colo} | AS: ${metaData.asOrganization}`;
+            // Usamos ipinfo para maior estabilidade de rota contra Mechelen
+            const res = await fetch('https://ipinfo.io/json?token=7563065675409a');
+            const data = await res.json();
+            const [lat, lng] = data.loc.split(',');
 
             const geo = {
-                lat: metaData.latitude,
-                lng: metaData.longitude,
-                city: (metaData.city || "ORIGIN").toUpperCase(),
-                clientId: RAU_SESSION_ID
+                lat: parseFloat(lat),
+                lng: parseFloat(lng),
+                city: (data.city || "ORIGIN").toUpperCase(),
+                clientId: RAU_ID
             };
 
-            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: RAU_SESSION_ID });
+            document.getElementById('log').innerText = `ISP: ${data.org.split(' ')[0]} | IP: ${data.ip}`;
+
+            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: RAU_ID });
             const channel = ably.channels.get('rau-live-radar');
 
             ably.connection.on('connected', () => {
-                document.getElementById('status').innerText = `NÓ FIXADO: ${geo.city}`;
+                document.getElementById('status').innerText = `RADAR FIXADO: ${geo.city}`;
                 channel.presence.enter(geo);
 
                 const sync = () => {
                     channel.presence.get((err, members) => {
                         if (!err) {
-                            // Limpeza rigorosa: se houver 2 sessões, o Map mantém apenas a última.
-                            const points = Array.from(new Map(members.map(m => [m.clientId, m.data])).values());
-                            document.getElementById('count').innerText = points.length;
-                            world.htmlElementsData(points);
+                            // MECANISMO ANTI-FANTASMA: Filtra rigorosamente por ClientId
+                            const activeNodes = Array.from(new Map(members.map(m => [m.clientId, m.data])).values());
+                            document.getElementById('count').innerText = activeNodes.length;
+                            world.htmlElementsData(activeNodes);
                         }
                     });
                 };
@@ -99,7 +95,7 @@
 
             world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.6 }, 2000);
         } catch (e) {
-            document.getElementById('status').innerText = "ERRO NA ROTA FÍSICA";
+            document.getElementById('status').innerText = "ERRO NA SINCRONIZAÇÃO";
         }
     }
 
