@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v108 - STRIKE TRUTH</title>
+    <title>RAU RADAR v109 - NATIVE CORE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -31,9 +31,9 @@
 <body>
 
 <div class="hud">
-    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v108</div>
+    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v109</div>
     <div id="count" class="count">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A DETERMINAR POSIÇÃO REAL...</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A CONECTAR AO CORE...</div>
 </div>
 
 <div id="globeViz"></div>
@@ -55,42 +55,43 @@
             return el;
         });
 
-    async function startRadar() {
-        // Tenta primeiro a localização física (Verdadeira)
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(async (pos) => {
-                const { latitude, longitude } = pos.coords;
-                // Converte coordenadas em nome de cidade real
+    function initNativeRadar() {
+        if ("geolocation" in navigator) {
+            // Alta precisão forçada para evitar o nó de Mechelen
+            const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
+
+            navigator.geolocation.getCurrentPosition(async (position) => {
+                const { latitude, longitude } = position.coords;
+                
+                // Conversão de coordenadas para cidade real (Reverse Geocoding)
                 try {
-                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
-                    const data = await res.json();
-                    const city = (data.address.city || data.address.town || data.address.village || "OSTEND").toUpperCase();
-                    initAbly({ lat: latitude, lng: longitude, city: city, country: data.address.country_code });
-                } catch(e) { fallbackIP(); }
-            }, () => fallbackIP(), { timeout: 5000 });
-        } else {
-            fallbackIP();
+                    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+                    const data = await response.json();
+                    const city = (data.address.city || data.address.town || data.address.village || "OSTENDE").toUpperCase();
+                    
+                    const geo = {
+                        lat: latitude,
+                        lng: longitude,
+                        city: city,
+                        country: (data.address.country_code || "be").toLowerCase()
+                    };
+                    
+                    startLivePresence(geo);
+                } catch (e) {
+                    console.error("Erro no mapeamento:", e);
+                }
+            }, (error) => {
+                document.getElementById('status').innerText = "ACESSO À REDE NEGADO";
+            }, options);
         }
     }
 
-    async function fallbackIP() {
-        // Se a localização física falhar, usamos o IP mas o radar será menos preciso
-        const res = await fetch('https://speed.cloudflare.com/meta');
-        const data = await res.json();
-        initAbly({
-            lat: data.latitude,
-            lng: data.longitude,
-            city: data.city.toUpperCase(),
-            country: data.country.toLowerCase()
-        });
-    }
-
-    function initAbly(geo) {
+    function startLivePresence(geo) {
         const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
         const channel = ably.channels.get('rau-live-radar');
 
         ably.connection.on('connected', () => {
-            document.getElementById('status').innerText = `FIXADO EM: ${geo.city}`;
+            document.getElementById('status').innerText = `FIXADO: ${geo.city}`;
             channel.presence.enter(geo);
 
             const update = () => {
@@ -111,7 +112,7 @@
 
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
-    startRadar();
+    initNativeRadar();
 </script>
 </body>
 </html>
