@@ -3,38 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RAU RADAR v197 - STELLAR FOCUS</title>
+    <title>RAU RADAR v200 - STATIC FIRMAMENT</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; height: 100vh; width: 100vw; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: monospace; height: 100vh; width: 100vw; }
         #globeViz { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
         
-        /* HUD Adaptável Chronos */
+        /* HUD Minimalista solicitado */
         .p-hud {
-            position: absolute; top: clamp(10px, 3vh, 30px); left: clamp(10px, 3vw, 20px);
-            background: rgba(0,0,0,0.85); border-left: 2px solid #39ff14;
-            padding: clamp(8px, 2vh, 12px) clamp(12px, 2vw, 18px); color: #fff; z-index: 1000;
-            border-radius: 0 4px 4px 0; backdrop-filter: blur(8px);
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(0,0,0,0.8); border-left: 3px solid #39ff14;
+            padding: 10px 15px; color: #fff; z-index: 1000;
+            border-radius: 0 2px 2px 0; font-size: 18px; font-weight: bold;
+            pointer-events: none; letter-spacing: 1px;
         }
-        .p-city { font-size: clamp(12px, 2vw, 14px); font-weight: 900; letter-spacing: 2px; text-transform: uppercase; }
-        .p-time { font-size: clamp(8px, 1.2vw, 10px); color: #39ff14; font-family: monospace; margin-top: 2px; }
-        .p-live { color: #39ff14; font-size: clamp(9px, 1.5vw, 11px); font-family: monospace; margin-top: 6px; }
+        .live-label { color: #39ff14; }
 
-        /* Marcadores */
+        /* Marcadores no Globo */
         .m-rau { display: flex; flex-direction: column; align-items: center; pointer-events: none; }
         .m-tag { 
-            display: flex; align-items: center; gap: 6px; 
-            background: rgba(0, 0, 0, 0.95); padding: 4px 8px; 
-            border: 1px solid #39ff14; border-radius: 2px; margin-bottom: 4px;
+            display: flex; align-items: center; gap: 5px; 
+            background: rgba(0, 0, 0, 0.9); padding: 3px 6px; 
+            border: 1px solid #39ff14; border-radius: 2px; margin-bottom: 3px;
         }
-        .m-flag { width: clamp(14px, 2vw, 18px); height: auto; }
-        .m-city { color: #fff; font-size: clamp(8px, 1.2vw, 10px); font-weight: bold; text-transform: uppercase; }
+        .m-flag { width: 16px; height: auto; }
+        .m-city { color: #fff; font-size: 9px; font-weight: bold; text-transform: uppercase; }
         
         .dot-active { 
-            width: clamp(5px, 1vw, 7px); height: clamp(5px, 1vw, 7px); 
-            background: #39ff14; border-radius: 50%; 
+            width: 6px; height: 6px; background: #39ff14; border-radius: 50%; 
             box-shadow: 0 0 10px #39ff14; border: 1px solid #fff;
         }
         .dot-ghost { width: 4px; height: 4px; background: #440000; border-radius: 50%; opacity: 0.6; }
@@ -45,13 +43,11 @@
 <div id="globeViz"></div>
 
 <div class="p-hud">
-    <div id="status-text" class="p-city">SYSTEM SYNC...</div>
-    <div id="time-text" class="p-time">---</div>
-    <div class="p-live">LIVE NODES: <span id="count">0</span></div>
+    LIVE: <span id="count" class="live-label">0</span>
 </div>
 
 <script>
-    const RAU_ID = 'STELLAR-' + Math.random().toString(36).substr(2, 5);
+    const RAU_ID = 'STATIONARY-' + Math.random().toString(36).substr(2, 5);
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
 
     const hour = new Date().getHours();
@@ -69,9 +65,9 @@
             const el = document.createElement('div');
             el.className = 'm-rau';
             if (d.status === 'active') {
-                const hasFlag = d.country && d.country !== '??';
-                const flagHtml = hasFlag ? `<img src="https://flagcdn.com/w40/${d.country.toLowerCase()}.png" class="m-flag">` : '';
-                el.innerHTML = `<div class="m-tag">${flagHtml}<span class="m-city">${d.city}</span></div><div class="dot-active"></div>`;
+                const c = (d.country || '??').toLowerCase();
+                const flag = c !== '??' ? `<img src="https://flagcdn.com/w40/${c}.png" class="m-flag">` : '';
+                el.innerHTML = `<div class="m-tag">${flag}<span class="m-city">${d.city}</span></div><div class="dot-active"></div>`;
             } else { el.innerHTML = `<div class="dot-ghost"></div>`; }
             return el;
         });
@@ -79,47 +75,60 @@
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
 
-    // --- NOVO MOTOR DE ESTRELAS ESTÁTICAS (Three.js) ---
+    // --- ESTRELAS IMÓVEIS E PISCANTES ---
     const scene = world.scene();
-    
     const starsGeometry = new THREE.BufferGeometry();
     const starsVertices = [];
-    for (let i = 0; i < 6000; i++) {
-        const x = THREE.MathUtils.randFloatSpread(2000);
-        const y = THREE.MathUtils.randFloatSpread(2000);
-        const z = THREE.MathUtils.randFloatSpread(2000);
-        // Garante que não estão dentro do globo
-        if (Math.sqrt(x*x + y*y + z*z) > 250) starsVertices.push(x, y, z);
+    for (let i = 0; i < 7000; i++) {
+        const x = THREE.MathUtils.randFloatSpread(3000);
+        const y = THREE.MathUtils.randFloatSpread(3000);
+        const z = THREE.MathUtils.randFloatSpread(3000);
+        if (Math.sqrt(x*x + y*y + z*z) > 300) starsVertices.push(x, y, z);
     }
     starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
     
-    const starField = new THREE.Points(starsGeometry, new THREE.PointsMaterial({color: 0xffffff, size: 0.7, transparent: true, opacity: 0.8}));
-    scene.add(starField); // Adicionado à cena, não ao globo rotativo
-    // ---------------------------------------------------
+    const starsMat = new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: 0.8,
+        transparent: true,
+        opacity: 0.8
+    });
+    
+    const starField = new THREE.Points(starsGeometry, starsMat);
+    scene.add(starField); // Adicionado à cena global (não roda com o globo)
 
+    // Lógica do Pisca-Pisca (Ciclo de 20 segundos)
+    function animate() {
+        const time = Date.now() * 0.001;
+        // Ciclo completo a cada 20 segundos (opacidade vai de 0.1 a 1.0)
+        const pulse = (Math.sin(time * (Math.PI * 2 / 20)) + 1) / 2;
+        starsMat.opacity = 0.1 + (pulse * 0.9);
+        requestAnimationFrame(animate);
+    }
+    animate();
+
+    // Redimensionamento Inteligente
     window.addEventListener('resize', () => {
         world.width(window.innerWidth);
         world.height(window.innerHeight);
     });
 
-    async function launchStellar() {
-        document.getElementById('time-text').innerText = isNight ? "MODE: NIGHT OPS (STELLAR)" : "MODE: DAYLIGHT SCAN";
+    async function init() {
         try {
             const res = await fetch('https://speed.cloudflare.com/meta');
             const data = await res.json();
-            const myGeo = {
+            const geo = {
                 lat: data.latitude || 0, lng: data.longitude || 0,
-                city: data.city ? data.city.toUpperCase() : "GLOBAL USER",
+                city: data.city ? data.city.toUpperCase() : "GENERAL",
                 country: data.country ? data.country.toLowerCase() : "??",
                 status: 'active'
             };
-            document.getElementById('status-text').innerText = myGeo.city;
 
             const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: RAU_ID });
             const channel = ably.channels.get('rau-live-radar');
 
             ably.connection.on('connected', () => {
-                channel.presence.enter(myGeo);
+                channel.presence.enter(geo);
                 channel.presence.subscribe(msg => {
                     if (['enter', 'present', 'update'].includes(msg.action)) archive.set(msg.clientId, {...msg.data, status: 'active'});
                     else if (msg.action === 'leave') {
@@ -131,11 +140,10 @@
                     world.htmlElementsData(nodes.filter(n => n.lat !== undefined));
                 });
             });
-            world.pointOfView({ lat: myGeo.lat, lng: myGeo.lng, altitude: 2 }, 1500);
-        } catch (e) { document.getElementById('status-text').innerText = "GENERAL ACCESS"; }
+            world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 2 }, 1500);
+        } catch (e) { console.warn("SYNC ERROR"); }
     }
-
-    launchStellar();
+    init();
 </script>
 </body>
 </html>
