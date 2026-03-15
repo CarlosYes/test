@@ -3,68 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v186 - NETWORK TOPOLOGY</title>
+    <title>RAU RADAR v189 - ATOM</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; }
         #globeViz { width: 100vw; height: 100vh; position: absolute; }
         
-        .player-hud {
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            width: 90%; max-width: 550px;
-            background: rgba(0, 10, 0, 0.9); border: 1px solid #39ff14;
-            border-radius: 4px; padding: 10px 20px;
-            display: flex; align-items: center; justify-content: space-between;
-            z-index: 1000; box-shadow: inset 0 0 15px #39ff1444;
+        /* HUD Ultra-Pequeno */
+        .p-hud {
+            position: absolute; bottom: 15px; left: 15px;
+            background: rgba(0,0,0,0.8); border-left: 2px solid #39ff14;
+            padding: 5px 12px; color: #fff; z-index: 1000;
         }
+        .p-hud div { font-size: 10px; font-weight: bold; letter-spacing: 1px; }
+        .p-count { color: #39ff14; font-size: 9px; margin-top: 2px; }
 
-        .scanner-text { color: #39ff14; font-size: 14px; font-weight: bold; text-transform: uppercase; }
-        .latency-bar { height: 4px; background: #111; width: 100px; position: relative; overflow: hidden; }
-        .latency-fill { position: absolute; height: 100%; background: #39ff14; animation: scan 2s infinite; }
+        /* Marcador Minimalista */
+        .m-rau { display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+        .m-tag { 
+            display: flex; align-items: center; gap: 4px; 
+            background: #000; padding: 2px 5px; border: 0.5px solid #39ff14; 
+            border-radius: 2px; margin-bottom: 2px;
+        }
+        .m-flag { width: 14px; height: 9px; }
+        .m-city { color: #fff; font-size: 9px; font-weight: bold; }
         
-        @keyframes scan { 0% { left: -100%; } 100% { left: 100%; } }
-
-        .m-rau { pointer-events: none; }
-        .l-rau { background: #39ff14; color: #000; padding: 2px 8px; font-weight: 900; font-size: 11px; clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%); }
+        /* Ponto Laser Pequeno e Reluzente */
+        .m-dot { 
+            width: 5px; height: 5px; background: #39ff14; border-radius: 50%; 
+            box-shadow: 0 0 8px #39ff14; border: 0.5px solid #fff; 
+        }
     </style>
 </head>
 <body>
 
 <div id="globeViz"></div>
 
-<div class="player-hud">
-    <div>
-        <div id="city" class="scanner-text">TOPOLOGY SCANNING...</div>
-        <div style="color: #39ff14; font-size: 8px; opacity: 0.7;">PINGING EDGE NODES / BYPASSING IP-DB</div>
-    </div>
-    <div class="latency-bar"><div class="latency-fill"></div></div>
-    <div style="background: #39ff14; color: #000; padding: 5px 10px; font-weight: 900; font-size: 12px;">LIVE: <span id="count">0</span></div>
+<div class="p-hud">
+    <div id="city-out">LOCATING...</div>
+    <div class="p-count">ACTIVE NODES: <span id="count">0</span></div>
 </div>
 
 <script>
-    const RAU_ID = 'TOPOLOGY-' + Math.random().toString(36).substr(2, 5);
+    const RAU_ID = 'ATOM-' + Math.random().toString(36).substr(2, 5);
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
 
     const world = Globe()(document.getElementById('globeViz'))
         .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
         .backgroundColor('#000000')
-        .showAtmosphere(true)
-        .atmosphereColor('#39ff14')
+        .showAtmosphere(false) // Removido para ser mais limpo
         .htmlElement(d => {
             const el = document.createElement('div');
             el.className = 'm-rau';
-            el.innerHTML = `<div class="l-rau">${d.city}</div>`;
+            el.innerHTML = `
+                <div class="m-tag">
+                    <img src="https://flagcdn.com/w40/${d.country.toLowerCase()}.png" class="m-flag">
+                    <span class="m-city">${d.city}</span>
+                </div>
+                <div class="m-dot"></div>
+            `;
             return el;
         });
 
     world.controls().autoRotate = true;
-    world.controls().autoRotateSpeed = 0.8;
+    world.controls().autoRotateSpeed = 0.4;
 
-    async function revolutionaryTrace() {
-        // NOVO MÉTODO: Em vez de uma API de GeoIP comum, usamos o Cloudflare Speed Test Meta
-        // Este serviço cruza o IP com a latência real do centro de dados (PoP)
+    async function init() {
         try {
             const res = await fetch('https://speed.cloudflare.com/meta');
             const data = await res.json();
@@ -72,11 +78,12 @@
             const geo = {
                 lat: data.latitude,
                 lng: data.longitude,
-                city: (data.city || "EDGE NODE").toUpperCase(),
+                city: (data.city || "NODE").toUpperCase(),
+                country: (data.country || "BE").toLowerCase(),
                 clientId: RAU_ID
             };
 
-            document.getElementById('city').innerText = geo.city;
+            document.getElementById('city-out').innerText = geo.city;
 
             const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: RAU_ID });
             const channel = ably.channels.get('rau-live-radar');
@@ -96,14 +103,14 @@
                 sync();
             });
 
-            world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.8 }, 2500);
+            world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 2 }, 1500);
 
         } catch (e) {
-            document.getElementById('city').innerText = "LINK TRUNCATED";
+            document.getElementById('city-out').innerText = "OFFLINE";
         }
     }
 
-    revolutionaryTrace();
+    init();
 </script>
 </body>
 </html>
