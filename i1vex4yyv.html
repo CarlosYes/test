@@ -5,76 +5,64 @@
     <script src="https://unpkg.com/three"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: 'Arial', sans-serif; }
-        #monitor {
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+        #radar-box {
             position: absolute; top: 20px; left: 20px;
-            background: rgba(0, 30, 0, 0.9); color: #00ff00;
+            background: rgba(0, 40, 0, 0.9); color: #00ff00;
             padding: 15px; border: 2px solid #00ff00;
             z-index: 1000; font-size: 18px; font-weight: bold;
             box-shadow: 0 0 15px #00ff00; border-radius: 5px;
+            text-transform: uppercase;
         }
     </style>
 </head>
 <body>
-
-    <div id="monitor">SISTEMA PRIVADO: A CONECTAR...</div>
+    <div id="radar-box">SISTEMA: A LOCALIZAR VISITANTE...</div>
     <div id="globeViz"></div>
 
     <script>
-        const monitor = document.getElementById('monitor');
-
-        // 1. Configuração do Globo (Dia/Noite + Estrelas)
+        // Configuração do Globo
         const world = Globe()(document.getElementById('globeViz'))
             .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
             .nightImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
             .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
             .showAtmosphere(true)
-            .atmosphereColor('#3a228a');
-
-        const scene = world.scene();
-        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-        const sun = new THREE.DirectionalLight(0xffffff, 1.5);
-        sun.position.set(1, 1, 1);
-        scene.add(sun);
+            .atmosphereColor('#00ff00')
+            .atmosphereAltitude(0.15);
 
         world.controls().autoRotate = true;
-        world.controls().autoRotateSpeed = 0.5;
+        world.controls().autoRotateSpeed = 0.8;
 
-        // 2. LIGAÇÃO AO TEU CLOUDFLARE WORKER
-        async function carregarDados() {
+        async function iniciarRadar() {
             try {
-                // USANDO O TEU PRÓPRIO SERVIÇO
-                const res = await fetch('https://globorau.carlos2022yes.workers.dev/');
-                const data = await res.json();
+                // Ligar ao Worker que já está a funcionar
+                const response = await fetch('https://globorau.carlos2022yes.workers.dev/');
+                const data = await response.json();
+                
+                const local = `${data.flag} ${data.city}, ${data.country}`;
+                document.getElementById('radar-box').innerHTML = `LOCALIZADO: ${local}`;
 
-                if (data.city) {
-                    const local = `${data.flag} ${data.city}, ${data.country}`;
-                    monitor.innerHTML = `VISITANTE: ${local}`;
+                // Adicionar o ponto no mapa
+                const marker = [{ lat: data.latitude, lng: data.longitude, size: 1, color: '#00ff00' }];
+                
+                world.pointsData(marker)
+                    .pointAltitude(0.1)
+                    .pointColor('color');
 
-                    // Marcar no Globo
-                    world.labelsData([{ lat: parseFloat(data.latitude), lng: parseFloat(data.longitude), text: local }])
-                        .labelSize(3).labelColor(() => '#00ff00');
-                    
-                    world.ringsData([{ lat: parseFloat(data.latitude), lng: parseFloat(data.longitude) }])
-                        .ringColor(() => '#00ff00');
+                world.ringsData(marker)
+                    .ringColor(() => '#00ff00')
+                    .ringMaxRadius(5)
+                    .ringPropagationSpeed(3);
 
-                    // Focar a câmara
-                    world.pointOfView({ lat: parseFloat(data.latitude), lng: parseFloat(data.longitude), altitude: 2 }, 2000);
-                } else {
-                    monitor.innerHTML = "SISTEMA ONLINE (DADOS LOCAIS)";
-                }
-            } catch (e) {
-                monitor.innerHTML = "ERRO: VERIFIQUE O WORKER";
-                console.log(e);
+                // Focar a câmara no visitante
+                world.pointOfView({ lat: data.latitude, lng: data.longitude, altitude: 2 }, 2000);
+
+            } catch (err) {
+                document.getElementById('radar-box').innerHTML = "ERRO: FALHA NA SINCRONIZAÇÃO";
             }
         }
 
-        carregarDados();
-
-        window.addEventListener('resize', () => {
-            world.width(window.innerWidth);
-            world.height(window.innerHeight);
-        });
+        iniciarRadar();
     </script>
 </body>
 </html>
