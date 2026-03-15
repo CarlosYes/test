@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v141 - HIGH PRECISION</title>
+    <title>RAU RADAR v143 - NEUTRAL ENGINE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -31,16 +31,16 @@
 <body>
 
 <div class="hud">
-    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v141</div>
+    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v143</div>
     <div id="count" class="count">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A AGUARDAR COORDENADAS REAIS...</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A RASTREAR INFRAESTRUTURA GLOBAL...</div>
 </div>
 
 <div id="globeViz"></div>
 
 <script>
-    const RAU_ID = 'SESSION-' + Math.random().toString(36).substr(2, 9);
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
+    const RAU_ID = 'NODE-' + Math.random().toString(36).substr(2, 7);
 
     const world = Globe()(document.getElementById('globeViz'))
         .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
@@ -50,67 +50,55 @@
         .htmlElement(d => {
             const el = document.createElement('div');
             el.className = 'm-rau';
-            const flag = `<img src="https://flagcdn.com/w40/be.png">`;
-            el.innerHTML = `<div class="l-rau">${flag}<span>${d.city}</span></div><div class="d-rau"></div>`;
+            // Só renderiza a bandeira se o país for detectado
+            const flag = d.country ? `<img src="https://flagcdn.com/w40/${d.country.toLowerCase()}.png">` : '';
+            el.innerHTML = `<div class="l-rau">${flag}<span>${d.city || 'LOCALIZING'}</span></div><div class="d-rau"></div>`;
             return el;
         });
 
-    function startAbly(geo) {
-        const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: RAU_ID });
-        const channel = ably.channels.get('rau-live-radar');
-
-        ably.connection.on('connected', () => {
-            document.getElementById('status').innerText = `LOCALIZAÇÃO FIXADA`;
-            channel.presence.enter(geo);
-
-            const sync = () => {
-                channel.presence.get((err, members) => {
-                    if (!err) {
-                        const activeNodes = [];
-                        const seen = new Set();
-                        members.forEach(m => {
-                            if (!seen.has(m.clientId)) {
-                                activeNodes.push(m.data);
-                                seen.add(m.clientId);
-                            }
-                        });
-                        document.getElementById('count').innerText = activeNodes.length;
-                        world.htmlElementsData(activeNodes);
-                    }
-                });
-            };
-            channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
-            sync();
-        });
-        world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.8 }, 2000);
-    }
-
-    // TÉCNICA SUPREMA: Se o browser permitir, usamos GPS/Wi-Fi. Se não, usamos o IP como fallback.
-    if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-            // Sucesso: Temos a posição real de Ostende
-            const geo = {
-                lat: pos.coords.latitude,
-                lng: pos.coords.longitude,
-                city: "LOCALIZAÇÃO REAL",
-                clientId: RAU_ID
-            };
-            startAbly(geo);
-        }, async (err) => {
-            // Falhou a permissão: Usamos o método do IP (que pode dar Mechelen)
+    async function track() {
+        try {
+            // Interrogamos a Cloudflare para obter os dados do nó de rede real
             const response = await fetch('https://speed.cloudflare.com/meta');
             const data = await response.json();
-            startAbly({
+
+            const geo = {
                 lat: data.latitude,
                 lng: data.longitude,
-                city: data.city.toUpperCase(),
+                city: (data.city || "UNKNOWN").toUpperCase(),
+                country: data.country || null, // Se for null, o sistema não inventa
                 clientId: RAU_ID
+            };
+
+            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: RAU_ID });
+            const channel = ably.channels.get('rau-live-radar');
+
+            ably.connection.on('connected', () => {
+                document.getElementById('status').innerText = `NÓ DETECTADO: ${geo.city}`;
+                channel.presence.enter(geo);
+
+                const sync = () => {
+                    channel.presence.get((err, members) => {
+                        if (!err) {
+                            const nodes = Array.from(new Map(members.map(m => [m.clientId, m.data])).values());
+                            document.getElementById('count').innerText = nodes.length;
+                            world.htmlElementsData(nodes);
+                        }
+                    });
+                };
+                channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
+                sync();
             });
-        });
+
+            world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.8 }, 2000);
+        } catch (e) {
+            document.getElementById('status').innerText = "ERRO DE SINCRONIZAÇÃO";
+        }
     }
 
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
+    track();
 </script>
 </body>
 </html>
