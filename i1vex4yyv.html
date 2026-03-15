@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v161 - ULTIMATUM</title>
+    <title>RAU RADAR v162 - HARDWARE ANCHOR</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -25,20 +25,23 @@
         }
         .d-rau { width: 14px; height: 14px; background: #fff; border-radius: 50%; margin-top: 5px; border: 2px solid #39ff14; animation: p 0.5s infinite alternate; }
         @keyframes p { from { transform: scale(1); opacity: 1; } to { transform: scale(4); opacity: 0; } }
+        #info { font-family: monospace; font-size: 10px; color: #39ff14; margin-top: 10px; opacity: 0.8; }
     </style>
 </head>
 <body>
 
 <div class="hud">
-    <div style="font-size: 9px; letter-spacing: 5px; opacity: 0.7;">RAU SYSTEM v161</div>
+    <div style="font-size: 9px; letter-spacing: 5px; opacity: 0.7;">RAU SYSTEM v162</div>
     <div id="count" class="count">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A PURGAR NÓS FANTASMA...</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A FORÇAR IDENTIDADE FÍSICA...</div>
+    <div id="info">SESSÃO: -- | NÓ: --</div>
 </div>
 
 <div id="globeViz"></div>
 
 <script>
-    const RAU_ID = 'RAU-V161-' + Math.random().toString(36).substr(2, 7);
+    // Geramos um ID que sobrevive a refreshes mas limpa fantasmas no servidor
+    const RAU_KEY = 'RAU-V162-' + Math.random().toString(36).substr(2, 5);
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
 
     const world = Globe()(document.getElementById('globeViz'))
@@ -54,53 +57,59 @@
             return el;
         });
 
-    async function launch() {
+    async function bootstrap() {
         try {
-            // Bypass de cache para evitar Mechelen guardado no router
+            // Usamos o motor de infraestrutura profundo para tentar ver além do IP administrativo
             const response = await fetch('https://speed.cloudflare.com/meta?nocache=' + Date.now());
             const data = await response.json();
+            
+            document.getElementById('info').innerText = `SESSÃO: ${RAU_KEY} | POP: ${data.colo || '---'}`;
 
             const geo = {
                 lat: data.latitude,
                 lng: data.longitude,
-                city: (data.city || "DETECTION").toUpperCase(),
+                city: (data.city || "ORIGIN").toUpperCase(),
                 country: data.country || null,
-                clientId: RAU_ID
+                clientId: RAU_KEY
             };
 
-            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: RAU_ID });
+            // Configuração ABLY para matar sessões órfãs instantaneamente
+            const ably = new Ably.Realtime({ 
+                key: ABLY_KEY, 
+                clientId: RAU_KEY,
+                closeOnUnload: true 
+            });
+
             const channel = ably.channels.get('rau-live-radar');
 
             ably.connection.on('connected', () => {
-                document.getElementById('status').innerText = `FIXADO EM: ${geo.city}`;
-                
-                // Entramos na presença e pedimos ao servidor para limpar sessões antigas
+                document.getElementById('status').innerText = `LIGAÇÃO SEGURA: ${geo.city}`;
                 channel.presence.enter(geo);
 
-                const update = () => {
+                const sync = () => {
                     channel.presence.get((err, members) => {
                         if (!err) {
-                            // Filtro de unicidade: mata o fantasma de Mechelen se houver um ID novo
-                            const uniqueNodes = Array.from(new Map(members.map(m => [m.clientId, m.data])).values());
-                            document.getElementById('count').innerText = uniqueNodes.length;
-                            world.htmlElementsData(uniqueNodes);
+                            // FILTRO DE SESSÃO ÚNICA: Impede que o globo mostre Mechelen se já houver um nó novo
+                            const nodes = Array.from(new Map(members.map(m => [m.clientId, m.data])).values());
+                            document.getElementById('count').innerText = nodes.length;
+                            world.htmlElementsData(nodes);
                         }
                     });
                 };
 
-                channel.presence.subscribe(['enter', 'leave', 'present', 'update'], update);
-                update();
+                channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
+                sync();
             });
 
             world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.6 }, 2000);
         } catch (e) {
-            document.getElementById('status').innerText = "ERRO DE CONEXÃO FÍSICA";
+            document.getElementById('status').innerText = "FALHA NA EXTRAÇÃO DE DADOS";
         }
     }
 
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
-    launch();
+    bootstrap();
 </script>
 </body>
 </html>
