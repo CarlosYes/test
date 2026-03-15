@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v139 - GHOST KILLER</title>
+    <title>RAU RADAR v140 - PRECISION</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -31,16 +31,16 @@
 <body>
 
 <div class="hud">
-    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v139</div>
+    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v140</div>
     <div id="count" class="count">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A ELIMINAR FANTASMAS DE REDE...</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A SINCRONIZAR HARDWARE...</div>
 </div>
 
 <div id="globeViz"></div>
 
 <script>
-    // Usamos uma chave de sessão única baseada no tempo para evitar duplicados (o "fantasma" de Mechelen)
-    const SESSION_ID = 'RAU-USER-' + Math.floor(Date.now() / 10000); 
+    // Identificador único persistente para esta aba para evitar duplicados "fantasmas"
+    const RAU_ID = 'USER-' + Math.random().toString(36).substr(2, 9);
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
 
     const world = Globe()(document.getElementById('globeViz'))
@@ -56,53 +56,60 @@
             return el;
         });
 
-    async function startRadar() {
+    async function initRadar() {
         try {
-            // Interrogamos o nó de borda (Cloudflare) - o mesmo método da Amazon
+            // Interrogamos o Point of Presence (PoP) real - técnica Amazon/Google
             const response = await fetch('https://speed.cloudflare.com/meta');
             const data = await response.json();
 
             const geo = {
                 lat: data.latitude,
                 lng: data.longitude,
-                city: (data.city || "LOCALIZING").toUpperCase(),
+                city: (data.city || "NODE").toUpperCase(),
                 country: (data.country || "be").toLowerCase(),
-                id: SESSION_ID // Identificador único para não duplicar no mapa
+                clientId: RAU_ID
             };
 
-            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
+            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: RAU_ID });
             const channel = ably.channels.get('rau-live-radar');
 
             ably.connection.on('connected', () => {
-                document.getElementById('status').innerText = `RADAR ATIVO EM: ${geo.city}`;
-                
-                // Entra na presença e limpa qualquer sessão antiga com o mesmo ID
+                document.getElementById('status').innerText = `CONECTADO: ${geo.city}`;
                 channel.presence.enter(geo);
 
-                const updateWorld = () => {
+                const sync = () => {
                     channel.presence.get((err, members) => {
                         if (!err) {
-                            // Filtramos membros duplicados para garantir que se estás sozinho, só aparece UM ponto
-                            const uniqueNodes = Array.from(new Map(members.map(m => [m.clientId, m.data])).values());
-                            document.getElementById('count').innerText = uniqueNodes.length;
-                            world.htmlElementsData(uniqueNodes);
+                            // FILTRO CRÍTICO: Remove duplicados pelo ID único da sessão
+                            const activeNodes = [];
+                            const seen = new Set();
+                            
+                            members.forEach(m => {
+                                if (!seen.has(m.clientId)) {
+                                    activeNodes.push(m.data);
+                                    seen.add(m.clientId);
+                                }
+                            });
+
+                            document.getElementById('count').innerText = activeNodes.length;
+                            world.htmlElementsData(activeNodes);
                         }
                     });
                 };
 
-                channel.presence.subscribe(['enter', 'leave', 'present', 'update'], updateWorld);
-                updateWorld();
+                channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
+                sync();
             });
 
             world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.8 }, 2000);
         } catch (e) {
-            document.getElementById('status').innerText = "ERRO DE SINCRONIZAÇÃO";
+            document.getElementById('status').innerText = "ERRO NA DETEÇÃO FÍSICA";
         }
     }
 
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
-    startRadar();
+    initRadar();
 </script>
 </body>
 </html>
