@@ -8,28 +8,27 @@
         body { margin: 0; overflow: hidden; font-family: 'Courier New', monospace; transition: background 1s; }
         #radar-box {
             position: absolute; top: 20px; left: 20px;
-            background: rgba(0, 30, 0, 0.85); color: #00ff00;
-            padding: 15px; border: 2px solid #00ff00;
-            z-index: 1000; font-size: 18px; font-weight: bold;
-            box-shadow: 0 0 15px #00ff00; border-radius: 5px;
+            background: rgba(0, 30, 0, 0.9); color: #00ff00;
+            padding: 18px; border: 2px solid #00ff00;
+            z-index: 1000; font-size: 20px; font-weight: bold;
+            box-shadow: 0 0 20px #00ff00; border-radius: 8px;
+            line-height: 1.5;
         }
     </style>
 </head>
 <body>
-    <div id="radar-box">SISTEMA: A SINCRONIZAR HORÁRIO...</div>
+    <div id="radar-box">SISTEMA: A LOCALIZAR...</div>
     <div id="globeViz"></div>
 
     <script>
-        // 1. Verificar se é dia ou noite (Entre as 07h e as 19h é DIA)
-        const horaAtual = new Date().getHours();
-        const eDia = horaAtual >= 7 && horaAtual < 19;
-
-        // 2. Definir as texturas baseadas na hora
+        // 1. Lógica de Dia/Noite (Baseada na tua hora atual)
+        const hora = new Date().getHours();
+        const eDia = hora >= 7 && hora < 19;
+        
+        const corFundo = eDia ? '#87CEEB' : '#000000'; // Azul durante o dia, Preto à noite
         const imgTerra = eDia 
             ? 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg' 
             : 'https://unpkg.com/three-globe/example/img/earth-night.jpg';
-        
-        const corFundo = eDia ? '#87CEEB' : '#000005'; // Azul céu ou Preto espacial
 
         document.body.style.background = corFundo;
 
@@ -41,36 +40,39 @@
             .atmosphereAltitude(0.15);
 
         world.controls().autoRotate = true;
-        world.controls().autoRotateSpeed = 0.5;
+        world.controls().autoRotateSpeed = 0.6;
 
-        async function iniciarRadar() {
+        async function iniciar() {
             try {
+                // Chamada ao teu Worker que já está a funcionar
                 const response = await fetch('https://globorau.carlos2022yes.workers.dev/');
                 const data = await response.json();
                 
-                const statusHora = eDia ? "MODO DIURNO" : "MODO NOTURNO";
-                const local = `${data.flag} ${data.city}, ${data.country}`;
+                // Exibição do Nome da Cidade e Bandeira como pedido
+                const infoVisitante = `${data.flag} ${data.city.toUpperCase()}, ${data.country}`;
                 
                 document.getElementById('radar-box').innerHTML = `
-                    ${statusHora}<br>
-                    LOCALIZADO: ${local}
+                    SISTEMA RADAR ATIVO<br>
+                    ------------------<br>
+                    LOCAL: ${infoVisitante}<br>
+                    MODO: ${eDia ? 'DIURNO' : 'NOTURNO'}
                 `;
 
                 const marker = [{ lat: data.latitude, lng: data.longitude }];
                 
                 world.ringsData(marker)
                     .ringColor(() => '#00ff00')
-                    .ringMaxRadius(6)
-                    .ringPropagationSpeed(2);
+                    .ringMaxRadius(7)
+                    .ringPropagationSpeed(3);
 
-                world.pointOfView({ lat: data.latitude, lng: data.longitude, altitude: 2 }, 2000);
+                world.pointOfView({ lat: data.latitude, lng: data.longitude, altitude: 1.8 }, 2500);
 
             } catch (err) {
-                document.getElementById('radar-box').innerHTML = "ERRO NA CONEXÃO";
+                document.getElementById('radar-box').innerHTML = "ERRO: FALHA NA SINCRONIZAÇÃO";
             }
         }
 
-        iniciarRadar();
+        iniciar();
     </script>
 </body>
 </html>
