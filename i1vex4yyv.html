@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v99 - REAL TRACK</title>
+    <title>RAU RADAR v100 - CENTURY</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -31,9 +31,9 @@
 <body>
 
 <div class="hud">
-    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v99</div>
+    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v100</div>
     <div id="count" class="count">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A LER DADOS DE REDE...</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A ESTABELECER LIGAÇÃO...</div>
 </div>
 
 <div id="globeViz"></div>
@@ -50,30 +50,30 @@
         .htmlElement(d => {
             const el = document.createElement('div');
             el.className = 'm-rau';
-            const flag = d.country ? `<img src="https://flagcdn.com/w40/${d.country.toLowerCase()}.png">` : '';
+            const flag = d.countryCode ? `<img src="https://flagcdn.com/w40/${d.countryCode.toLowerCase()}.png">` : '';
             el.innerHTML = `<div class="l-rau">${flag}<span>${d.city}</span></div><div class="d-rau"></div>`;
             return el;
         });
 
     async function startRadar() {
         try {
-            // Usando o endpoint de alta prioridade da ip-api
-            const res = await fetch('https://demo.ip-api.com/json/?fields=66842623&lang=en');
+            // Usando Extreme-IP-Lookup para evitar Mechelen
+            const res = await fetch('https://extreme-ip-lookup.com/json/?key=demo2');
             const data = await res.json();
 
-            if (data && data.status === 'success') {
+            if (data.status === "success") {
                 const geo = {
-                    lat: data.lat,
-                    lng: data.lon,
+                    lat: parseFloat(data.lat),
+                    lng: parseFloat(data.lon),
                     city: data.city.toUpperCase(),
-                    country: data.countryCode.toLowerCase()
+                    countryCode: data.countryCode
                 };
 
                 const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
                 const channel = ably.channels.get('rau-live-radar');
 
                 ably.connection.on('connected', () => {
-                    document.getElementById('status').innerText = `NODE: ${geo.city}`;
+                    document.getElementById('status').innerText = `FIXADO: ${geo.city}`;
                     channel.presence.enter(geo);
 
                     const sync = () => {
@@ -92,7 +92,7 @@
                 world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.8 }, 2000);
             }
         } catch (e) {
-            document.getElementById('status').innerText = "ERRO DE SATÉLITE";
+            document.getElementById('status').innerText = "ERRO NA ROTA DE REDE";
         }
     }
 
