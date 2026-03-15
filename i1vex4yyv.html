@@ -2,75 +2,71 @@
 <html lang="pt-pt">
 <head>
     <meta charset="UTF-8">
+    <title>Radar de Visitantes</title>
     <script src="https://unpkg.com/globe.gl"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
         #globeViz { width: 100vw; height: 100vh; }
-        .user-tag {
-            position: absolute; top: 10px; left: 10px;
-            background: rgba(0,0,0,0.8); color: #00ff00;
-            padding: 10px; border: 1px solid #00ff00;
-            font-weight: bold; z-index: 10;
+        .monitor {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(0, 0, 0, 0.8); color: #00ff00;
+            padding: 15px; border: 1px solid #00ff00;
+            border-radius: 4px; z-index: 100;
+            font-family: monospace; font-size: 14px;
         }
     </style>
 </head>
 <body>
 
-    <div class="user-tag" id="user-info">A identificar visitante...</div>
+    <div class="monitor" id="out">AGUARDANDO CONEXÃO...</div>
     <div id="globeViz"></div>
 
     <script>
-        const infoDiv = document.getElementById('user-info');
-
-        // 1. Criar o Globo
         const world = Globe()(document.getElementById('globeViz'))
             .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
             .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
             .labelSize(3)
-            .labelDotRadius(1)
             .labelColor(() => '#00ff00')
-            .labelResolution(3);
+            .ringColor(() => '#00ff00')
+            .ringMaxRadius(5);
 
         world.controls().autoRotate = true;
-        world.controls().autoRotateSpeed = 0.8;
 
-        // 2. A MINHA LÓGICA: Capturar e Mostrar Cidade + Bandeira
-        async function mostrarVisitanteReal() {
+        async function rastrear() {
             try {
-                // Usamos o IPWHOIS que devolve a bandeira e a cidade num JSON limpo
+                // Usando ipwho.is que é mais rápida e estável para GitHub Pages
                 const res = await fetch('https://ipwho.is/');
                 const data = await res.json();
 
-                if (data.success) {
-                    const { latitude, longitude, city, country, country_code } = data;
-                    
-                    // Lógica da Bandeira (converte código em Emoji)
-                    const flag = country_code.toUpperCase().replace(/./g, char => 
+                if(data.success) {
+                    const flag = data.country_code.toUpperCase().replace(/./g, char => 
                         String.fromCodePoint(char.charCodeAt(0) + 127397)
                     );
 
-                    const textoFinal = `${flag} ${city}, ${country}`;
+                    const local = `${flag} ${data.city}, ${data.country}`;
+                    document.getElementById('out').innerHTML = `LOCALIZADO: ${local}`;
+
+                    // Marcação no globo
+                    world.labelsData([{ lat: data.latitude, lng: data.longitude, text: local }]);
+                    world.ringsData([{ lat: data.latitude, lng: data.longitude }]);
                     
-                    // Atualiza o texto no topo
-                    infoDiv.innerHTML = `LIGADO: ${textoFinal}`;
-
-                    // Injeta a etiqueta EXATAMENTE em cima do ponto do utilizador
-                    world.labelsData([{
-                        lat: latitude,
-                        lng: longitude,
-                        text: textoFinal
-                    }])
-                    .labelText('text');
-
-                    // Faz o globo girar e parar exatamente na tua cidade
-                    world.pointOfView({ lat: latitude, lng: longitude, altitude: 2 }, 2000);
+                    // Zoom para a localização real
+                    world.pointOfView({ lat: data.latitude, lng: data.longitude, altitude: 2 }, 2000);
+                } else {
+                    document.getElementById('out').innerText = "ERRO: LIMITE DE REDE ATINGIDO.";
                 }
             } catch (e) {
-                infoDiv.innerText = "Erro ao detetar localização.";
+                document.getElementById('out').innerText = "ERRO DE LIGAÇÃO À API.";
+                console.error(e);
             }
         }
 
-        mostrarVisitanteReal();
+        rastrear();
+
+        window.addEventListener('resize', () => {
+            world.width(window.innerWidth);
+            world.height(window.innerHeight);
+        });
     </script>
 </body>
 </html>
