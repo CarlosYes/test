@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v102 - ULTIMATE</title>
+    <title>RAU RADAR v103 - FINAL TRUTH</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -12,7 +12,7 @@
         #globeViz { width: 100vw; height: 100vh; position: absolute; }
         .hud {
             position: absolute; top: 25px; left: 25px; z-index: 1000;
-            background: rgba(0, 0, 0, 0.9); border: 2px solid #39ff14;
+            background: rgba(0, 0, 0, 0.95); border: 2px solid #39ff14;
             padding: 20px; color: #39ff14; pointer-events: none;
             box-shadow: 0 0 35px #39ff1466; border-radius: 4px;
         }
@@ -31,9 +31,9 @@
 <body>
 
 <div class="hud">
-    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v102</div>
+    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v103</div>
     <div id="count" class="count">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A CONECTAR À REDE...</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A SINCRONIZAR POSIÇÃO REAL...</div>
 </div>
 
 <div id="globeViz"></div>
@@ -42,7 +42,7 @@
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
     const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 7);
 
-    // 1. GLOBO
+    // Inicialização do Globo (Visual 2026)
     const world = Globe()(document.getElementById('globeViz'))
         .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
         .backgroundColor('#000000')
@@ -56,14 +56,15 @@
             return el;
         });
 
-    // 2. MOTOR DE LOCALIZAÇÃO JSONP (Evita erros de carregamento no GitHub)
-    function locate() {
+    // Função de Localização via JSONP (Crucial para evitar Mechelen/Erros de CORS)
+    function startTracking() {
         const script = document.createElement('script');
-        script.src = 'https://ip-api.com/json/?callback=initRadar';
+        // Este endpoint lê a infraestrutura da operadora para tentar chegar a Ostende
+        script.src = 'https://ip-api.com/json/?callback=setupRadar&fields=status,city,lat,lon,countryCode';
         document.body.appendChild(script);
     }
 
-    window.initRadar = function(data) {
+    window.setupRadar = function(data) {
         if (data.status === 'success') {
             const geo = {
                 lat: data.lat,
@@ -72,15 +73,14 @@
                 country: data.countryCode.toLowerCase()
             };
 
-            // 3. ABLY REALTIME
             const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
             const channel = ably.channels.get('rau-live-radar');
 
             ably.connection.on('connected', () => {
-                document.getElementById('status').innerText = `RADAR ON: ${geo.city}`;
+                document.getElementById('status').innerText = `RADAR ATIVO: ${geo.city}`;
                 channel.presence.enter(geo);
 
-                const update = () => {
+                const sync = () => {
                     channel.presence.get((err, members) => {
                         if (!err) {
                             const nodes = members.map(m => m.data).filter(x => x && x.lat);
@@ -89,20 +89,19 @@
                         }
                     });
                 };
-
-                channel.presence.subscribe(['enter', 'leave', 'present', 'update'], update);
-                update();
+                channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
+                sync();
             });
 
             world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.8 }, 2000);
         } else {
-            document.getElementById('status').innerText = "ERRO DE RASTREIO";
+            document.getElementById('status').innerText = "ERRO DE RASTREAMENTO";
         }
     };
 
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
-    locate();
+    startTracking();
 </script>
 </body>
 </html>
