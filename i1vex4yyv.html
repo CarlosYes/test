@@ -5,7 +5,7 @@
     <script src="https://unpkg.com/three"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+        body { margin: 0; overflow: hidden; font-family: 'Courier New', monospace; transition: background 1s; }
         #radar-box {
             position: absolute; top: 20px; left: 20px;
             background: rgba(0, 30, 0, 0.9); color: #00ff00;
@@ -20,22 +20,33 @@
     <div id="globeViz"></div>
 
     <script>
+        // Lógica de Dia/Noite (Horário Local)
+        const hora = new Date().getHours();
+        const eDia = hora >= 7 && hora < 19;
+        
+        const corFundo = eDia ? '#87CEEB' : '#000000'; // Azul Céu ou Preto
+        const imgTerra = eDia 
+            ? 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg' 
+            : 'https://unpkg.com/three-globe/example/img/earth-night.jpg';
+
+        document.body.style.background = corFundo;
+
         const world = Globe()(document.getElementById('globeViz'))
-            .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
-            .backgroundColor('#000000')
+            .globeImageUrl(imgTerra)
+            .backgroundColor(corFundo)
             .showAtmosphere(true)
             .atmosphereColor('#00ff00');
 
         async function carregar() {
             try {
-                // Forçamos o fetch para o TEU worker sem cache
+                // Fetch para o TEU worker sem cache
                 const res = await fetch('https://globorau.carlos2022yes.workers.dev/?t=' + Date.now());
                 const d = await res.json();
                 
                 const local = `${d.flag} ${d.city.toUpperCase()}`;
                 document.getElementById('radar-box').innerHTML = `LOCALIZADO: ${local}`;
 
-                // O PONTO VERDE COM O NOME
+                // O PONTO VERDE COM O NOME E BANDEIRA NO GLOBO
                 world.labelsData([{ lat: d.latitude, lng: d.longitude, text: local }])
                     .labelColor(() => '#00ff00')
                     .labelSize(3)
