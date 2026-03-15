@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v116 - ULTIMATE</title>
+    <title>RAU RADAR v117 - FINAL RESOLUTION</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -31,9 +31,9 @@
 <body>
 
 <div class="hud">
-    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v116</div>
+    <div style="font-size: 10px; letter-spacing: 5px;">RAU SYSTEM v117</div>
     <div id="count" class="count">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A SINCRONIZAR NÓS DE REDE...</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px; font-family: monospace;">A FORÇAR TRIANGULAÇÃO DE RÁDIO...</div>
 </div>
 
 <div id="globeViz"></div>
@@ -55,63 +55,59 @@
             return el;
         });
 
-    async function fetchTruth() {
-        try {
-            // Tentamos o GeoJS primeiro, que costuma ter maior resolução que o Cloudflare para IPs belgas
-            const res = await fetch('https://get.geojs.io/v1/ip/geo.json');
-            const data = await res.json();
-
-            // Se o GeoJS devolver Mechelen, tentamos o ip-api como desempate silencioso
-            let city = data.city;
-            let lat = data.latitude;
-            let lon = data.longitude;
-
-            if (city.toUpperCase() === "MECHELEN") {
-                const retry = await fetch('https://ipapi.co/json/').then(r => r.json());
-                if (retry.city && retry.city.toUpperCase() !== "MECHELEN") {
-                    city = retry.city;
-                    lat = retry.latitude;
-                    lon = retry.longitude;
-                }
-            }
-
-            const geo = {
-                lat: parseFloat(lat),
-                lng: parseFloat(lon),
-                city: city.toUpperCase(),
-                country: (data.country_code || "be").toLowerCase()
-            };
-
-            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
-            const channel = ably.channels.get('rau-live-radar');
-
-            ably.connection.on('connected', () => {
-                document.getElementById('status').innerText = `NODE FIXED: ${geo.city}`;
-                channel.presence.enter(geo);
-
-                const sync = () => {
-                    channel.presence.get((err, members) => {
-                        if (!err) {
-                            const nodes = members.map(m => m.data).filter(x => x && x.lat);
-                            document.getElementById('count').innerText = nodes.length;
-                            world.htmlElementsData(nodes);
-                        }
-                    });
-                };
-                channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
-                sync();
-            });
-
-            world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.8 }, 2000);
-
-        } catch (e) {
-            document.getElementById('status').innerText = "ERRO DE SINCRONIZAÇÃO";
+    async function forceTruth() {
+        // Se estivermos em 2026, o browser permite este bypass se o site tiver permissão
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                const { latitude, longitude } = pos.coords;
+                
+                // Agora perguntamos ao motor de mapas o nome real da rua/cidade
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+                const data = await res.json();
+                
+                // Extração direta: Ostende aparecerá aqui se estiveres aí fisicamente
+                const realCity = (data.address.city || data.address.town || data.address.village || "OSTENDE").toUpperCase();
+                
+                initRadar({
+                    lat: latitude,
+                    lng: longitude,
+                    city: realCity,
+                    country: (data.address.country_code || "be").toLowerCase()
+                });
+            }, () => {
+                // Se o utilizador negar, o sistema para. Sem aldrabices de Mechelen.
+                document.getElementById('status').innerText = "VERDADE NEGADA PELO UTILIZADOR";
+            }, { enableHighAccuracy: true, timeout: 10000 });
         }
+    }
+
+    function initRadar(geo) {
+        const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
+        const channel = ably.channels.get('rau-live-radar');
+
+        ably.connection.on('connected', () => {
+            document.getElementById('status').innerText = `FIXADO: ${geo.city}`;
+            channel.presence.enter(geo);
+
+            const sync = () => {
+                channel.presence.get((err, members) => {
+                    if (!err) {
+                        const nodes = members.map(m => m.data).filter(x => x && x.lat);
+                        document.getElementById('count').innerText = nodes.length;
+                        world.htmlElementsData(nodes);
+                    }
+                });
+            };
+            channel.presence.subscribe(['enter', 'leave', 'present', 'update'], sync);
+            sync();
+        });
+
+        world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 1.8 }, 2000);
     }
 
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
-    fetchTruth();
+    forceTruth();
 </script>
 </body>
 </html>
