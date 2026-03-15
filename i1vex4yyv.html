@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v174 - RAW SENSOR</title>
+    <title>RAU RADAR v175 - ZERO TRUST</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -25,22 +25,22 @@
         }
         .d-rau { width: 14px; height: 14px; background: #fff; border-radius: 50%; margin-top: 5px; border: 2px solid #39ff14; animation: p 0.5s infinite alternate; }
         @keyframes p { from { transform: scale(1); opacity: 1; } to { transform: scale(4); opacity: 0; } }
-        #coords { font-family: monospace; font-size: 10px; color: #39ff14; margin-top: 5px; opacity: 0.8; }
+        #source-tag { font-size: 9px; background: #ff3131; color: #fff; padding: 2px 5px; margin-top: 5px; display: inline-block; }
     </style>
 </head>
 <body>
 
 <div class="hud">
-    <div style="font-size: 9px; letter-spacing: 5px; opacity: 0.7;">RAU SYSTEM v174</div>
+    <div style="font-size: 9px; letter-spacing: 5px; opacity: 0.7;">RAU SYSTEM v175</div>
     <div id="count" class="count">0</div>
-    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px;">LENDO HARDWARE...</div>
-    <div id="coords">LAT: -- | LNG: --</div>
+    <div id="status" style="font-size: 11px; color: #fff; margin-top: 10px;">VALIDANDO ORIGEM...</div>
+    <div id="source-tag">FONTE: DESCONHECIDA</div>
 </div>
 
 <div id="globeViz"></div>
 
 <script>
-    const RAU_ID = 'RAW-' + Math.random().toString(36).substr(2, 5);
+    const RAU_ID = 'NODE-' + Math.random().toString(36).substr(2, 5);
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
 
     const world = Globe()(document.getElementById('globeViz'))
@@ -55,19 +55,12 @@
             return el;
         });
 
-    async function getCityName(lat, lng) {
-        try {
-            // Geocoding reverso: pergunta ao mapa que cidade é esta nestas coordenadas
-            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
-            const data = await res.json();
-            return (data.address.city || data.address.town || data.address.village || "UNKNOWN").toUpperCase();
-        } catch (e) { return "SENSOR_ERROR"; }
-    }
+    function startRadar(lat, lng, cityName, source) {
+        document.getElementById('status').innerText = cityName.toUpperCase();
+        document.getElementById('source-tag').innerText = `FONTE: ${source}`;
+        document.getElementById('source-tag').style.background = source === 'GPS/WIFI' ? '#39ff14' : '#ff3131';
+        document.getElementById('source-tag').style.color = source === 'GPS/WIFI' ? '#000' : '#fff';
 
-    function initRadar(lat, lng, cityName) {
-        document.getElementById('coords').innerText = `LAT: ${lat.toFixed(4)} | LNG: ${lng.toFixed(4)}`;
-        document.getElementById('status').innerText = `DETETADO: ${cityName}`;
-        
         const geo = { lat, lng, city: cityName, clientId: RAU_ID };
         const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: RAU_ID });
         const channel = ably.channels.get('rau-live-radar');
@@ -89,18 +82,24 @@
         world.pointOfView({ lat, lng, altitude: 1.5 }, 2000);
     }
 
+    // TENTATIVA 1: O método que a Google usa (Alta Fidelidade)
     navigator.geolocation.getCurrentPosition(
         async (pos) => {
-            const name = await getCityName(pos.coords.latitude, pos.coords.longitude);
-            initRadar(pos.coords.latitude, pos.coords.longitude, name);
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            // Geocoding reverso para saber o nome real da rua/cidade
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+            const data = await res.json();
+            const name = (data.address.city || data.address.town || "OSTENDE").toUpperCase();
+            startRadar(lat, lng, name, 'GPS/WIFI');
         },
         async () => {
-            // Se falhar o hardware, ele volta ao IP (que provavelmente dirá Mechelen)
+            // TENTATIVA 2: Se o utilizador negar ou falhar, usa o IP (Baixa Fidelidade)
             const res = await fetch('https://ipapi.co/json/');
             const data = await res.json();
-            initRadar(data.latitude, data.longitude, data.city.toUpperCase());
+            startRadar(data.latitude, data.longitude, data.city.toUpperCase(), 'IP-DATABASE');
         },
-        { enableHighAccuracy: true }
+        { enableHighAccuracy: true, timeout: 5000 }
     );
 
     world.controls().autoRotate = true;
