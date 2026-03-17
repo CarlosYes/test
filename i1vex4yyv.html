@@ -3,123 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RAU RADAR - ELITE EDITION</title>
+    <title>RAU RADAR - ELITE PRECISION</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', monospace; }
-        body { background: #000; overflow: hidden; height: 100vh; width: 100vw; display: flex; justify-content: center; align-items: center; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+        body { background: #000; overflow: hidden; height: 100vh; display: flex; justify-content: center; align-items: center; }
         
-        /* Container Principal com Estética Malajes */
-        .main-container {
-            width: 100%; max-width: 500px; height: 95vh;
-            background: rgba(10, 0, 0, 0.95);
-            border: 2px solid #ff0000;
-            border-radius: 20px;
-            box-shadow: 0 0 30px rgba(255, 0, 0, 0.4);
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+        .container { 
+            width: 100%; max-width: 450px; height: 92vh;
+            background: rgba(15, 0, 0, 0.98); border: 2px solid #ff0000; border-radius: 15px;
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.6); display: flex; flex-direction: column; overflow: hidden;
         }
 
-        /* HUD Superior */
-        .header {
-            padding: 15px;
-            background: rgba(150, 0, 0, 0.2);
-            border-bottom: 1px solid rgba(255, 0, 0, 0.3);
-            text-align: center;
-            z-index: 10;
+        .header { padding: 15px; text-align: center; border-bottom: 1px solid #400; background: #1a0000; }
+        .title { color: #ff4444; font-weight: bold; letter-spacing: 2px; text-shadow: 0 0 10px #f00; }
+
+        #globeViz { flex: 1; position: relative; }
+
+        .footer-info { 
+            background: #050000; padding: 12px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #400;
         }
 
-        .title { color: #ff4444; font-size: 20px; font-weight: bold; letter-spacing: 3px; text-shadow: 0 0 10px #ff0000; }
-        
-        /* Área do Globo */
-        #globeViz { flex-grow: 1; width: 100%; position: relative; background: #000; }
-
-        /* HUD de Informação Estilo Malajes */
-        .info-panel {
-            display: flex; justify-content: space-around; align-items: center;
-            padding: 12px; background: #050000; color: #fff;
+        .vis-pill { 
+            background: #ff0000; color: #fff; padding: 5px 15px; border-radius: 20px; font-weight: bold; border: 1px solid #fff; box-shadow: 0 0 10px #f00;
         }
 
-        .vis-pill {
-            background: #ff0000; padding: 5px 15px; border-radius: 20px;
-            font-weight: bold; font-size: 18px; border: 1px solid #fff;
-            box-shadow: 0 0 10px #ff0000;
+        /* Botão para forçar a cidade correta */
+        .gps-fix {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: #39ff14; color: #000; border: none; padding: 8px 15px;
+            border-radius: 5px; font-weight: bold; cursor: pointer; z-index: 100;
+            font-size: 11px; box-shadow: 0 0 15px #39ff14;
         }
 
-        #time { font-size: 20px; font-weight: bold; color: #ff4444; }
-
-        /* Lista de Localizações */
-        .location-list {
-            height: 150px; overflow-y: auto; background: #000;
-            padding: 10px; border-top: 2px solid #300;
-        }
-
-        .location-item {
-            padding: 8px; background: rgba(255, 0, 0, 0.1);
-            border-left: 4px solid #f00; border-radius: 4px;
-            display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
-            font-size: 12px; font-weight: bold; color: #fff; text-transform: uppercase;
-        }
-        .location-item img { width: 20px; border-radius: 2px; }
-
-        /* Marcadores no Globo */
-        .m-tag { 
-            display: flex; align-items: center; gap: 5px; 
-            background: rgba(0,0,0,0.85); padding: 3px 7px; 
-            border: 1px solid #ff0000; border-radius: 3px;
-            color: #fff; font-size: 9px; white-space: nowrap;
-        }
+        .location-log { height: 100px; overflow-y: auto; background: #000; padding: 10px; font-size: 11px; }
+        .log-entry { display: flex; align-items: center; gap: 8px; color: #ccc; margin-bottom: 5px; border-left: 2px solid #f00; padding-left: 5px; }
     </style>
 </head>
-<body oncontextmenu="return false" onselectstart="return false" ondragstart="return false">
+<body oncontextmenu="return false">
 
-<div class="main-container">
+<div class="container">
     <div class="header">
-        <div class="title">RAU RADAR ELITE</div>
-        <div id="date" style="font-size: 10px; color: #aaa; margin-top: 5px;"></div>
+        <div class="title">RADIO MALAJES SYSTEM</div>
     </div>
 
-    <div id="globeViz"></div>
+    <div id="globeViz">
+        <button class="gps-fix" onclick="getPreciseLocation()">ATIVAR LOCALIZAÇÃO REAL</button>
+    </div>
 
-    <div class="info-panel">
-        <div id="time">00:00:00</div>
+    <div class="footer-info">
+        <div id="time" style="color:#fff; font-weight:bold;">00:00:00</div>
         <div class="vis-pill">LIVE: <span id="count">00</span></div>
     </div>
 
-    <div class="location-list" id="locationData"></div>
+    <div class="location-log" id="locationData"></div>
 </div>
 
 <script>
-    // Configurações de Estado (Persistência)
-    const settings = {
-        volume: localStorage.getItem('rau_volume') || 0.5,
-        autoplay: localStorage.getItem('rau_autoplay') || 'true'
-    };
-
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
-    let archive = new Map();
+    let myData = { lat: 0, lng: 0, city: "A RASTREAR...", country: "??" };
+    let ably, channel;
 
-    // Inicializar Globo
     const world = Globe()(document.getElementById('globeViz'))
         .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
-        .backgroundColor('#000000')
+        .backgroundColor('rgba(0,0,0,0)')
         .showAtmosphere(true)
         .atmosphereColor('#ff0000')
         .htmlElement(d => {
             const el = document.createElement('div');
-            const c = (d.country || '??').toLowerCase();
-            el.innerHTML = `
-                <div style="display:flex; flex-direction:column; align-items:center;">
-                    <div class="m-tag">
-                        <img src="https://flagcdn.com/w20/${c}.png" style="width:15px">
-                        <span>${d.city}</span>
-                    </div>
-                    <div style="width:6px; height:6px; background:#ff0000; border-radius:50%; box-shadow:0 0 10px #ff0000; border:1px solid #fff;"></div>
-                </div>`;
+            el.innerHTML = `<div style="color:#fff; font-size:10px; background:rgba(20,0,0,0.9); border:1px solid #f00; padding:3px 6px; border-radius:3px; display:flex; align-items:center; gap:5px; white-space:nowrap;">
+                <img src="https://flagcdn.com/w20/${d.country.toLowerCase()}.png" width="14"> ${d.city}</div>
+                <div style="width:8px; height:8px; background:#f00; border-radius:50%; margin:4px auto 0; box-shadow:0 0 12px #f00; border:1px solid #fff;"></div>`;
             return el;
         });
 
@@ -128,64 +84,62 @@
 
     // --- FIRMAMENTO ESTÁTICO ---
     const scene = world.scene();
-    const starGeometry = new THREE.BufferGeometry();
-    const starVertices = [];
-    for (let i = 0; i < 6000; i++) {
-        const x = THREE.MathUtils.randFloatSpread(3000);
-        const y = THREE.MathUtils.randFloatSpread(3000);
-        const z = THREE.MathUtils.randFloatSpread(3000);
-        if (Math.sqrt(x*x + y*y + z*z) > 400) starVertices.push(x, y, z);
+    const starGeo = new THREE.BufferGeometry();
+    const starCoords = [];
+    for (let i = 0; i < 7000; i++) {
+        starCoords.push(THREE.MathUtils.randFloatSpread(3000), THREE.MathUtils.randFloatSpread(3000), THREE.MathUtils.randFloatSpread(3000));
     }
-    starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
-    const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.7, transparent: true, opacity: 0.5 });
-    scene.add(new THREE.Points(starGeometry, starMaterial));
+    starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starCoords, 3));
+    scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.7 })));
 
-    // Lógica de Sincronização
     async function init() {
+        ably = new Ably.Realtime({ key: ABLY_KEY, clientId: 'M-' + Math.random().toString(36).substr(2, 5) });
+        channel = ably.channels.get('malajes-live');
+
+        channel.presence.subscribe(() => {
+            channel.presence.get((err, members) => {
+                const list = document.getElementById("locationData");
+                list.innerHTML = "";
+                const pts = members.map(m => {
+                    const entry = document.createElement("div");
+                    entry.className = "log-entry";
+                    entry.innerHTML = `<img src="https://flagcdn.com/w20/${m.data.country.toLowerCase()}.png" width="16"> ${m.data.city}`;
+                    list.appendChild(entry);
+                    return m.data;
+                });
+                document.getElementById('count').innerText = pts.length.toString().padStart(2, '0');
+                world.htmlElementsData(pts);
+            });
+        });
+        
+        // Carrega por IP primeiro (Plano B)
         try {
             const res = await fetch('https://speed.cloudflare.com/meta');
-            const data = await res.json();
-            const geo = {
-                lat: data.latitude, lng: data.longitude,
-                city: (data.city || "EUROPE").toUpperCase(),
-                country: (data.country || "be").toLowerCase()
-            };
+            const d = await res.json();
+            myData = { lat: d.latitude, lng: d.longitude, city: d.city.toUpperCase(), country: d.country };
+            channel.presence.enter(myData);
+            world.pointOfView({ lat: myData.lat, lng: myData.lng, altitude: 2 }, 2000);
+        } catch(e) { channel.presence.enter(myData); }
+    }
 
-            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: 'RAU-' + Math.random().toString(36).substr(2, 4) });
-            const channel = ably.channels.get('rau-elite-radar');
-
-            channel.presence.subscribe(() => {
-                channel.presence.get((err, members) => {
-                    const list = document.getElementById("locationData");
-                    list.innerHTML = "";
-                    const activeMembers = members.map(m => {
-                        const div = document.createElement("div");
-                        div.className = "location-item";
-                        div.innerHTML = `<img src="https://flagcdn.com/w40/${m.data.country}.png"> <span>${m.data.city}</span>`;
-                        list.appendChild(div);
-                        return m.data;
-                    });
-                    document.getElementById('count').innerText = activeMembers.length.toString().padStart(2, '0');
-                    world.htmlElementsData(activeMembers);
-                });
+    function getPreciseLocation() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                myData.lat = pos.coords.latitude;
+                myData.lng = pos.coords.longitude;
+                
+                // Converte coordenadas em nome de cidade real
+                const rev = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${myData.lat}&lon=${myData.lng}`);
+                const res = await rev.json();
+                myData.city = (res.address.city || res.address.town || "LOCALIZAÇÃO REAL").toUpperCase();
+                
+                channel.presence.update(myData);
+                world.pointOfView({ lat: myData.lat, lng: myData.lng, altitude: 1.5 }, 2000);
             });
-            channel.presence.enter(geo);
-            world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 2 }, 2000);
-        } catch (e) { console.error("OFFLINE MODE"); }
+        }
     }
 
-    // Relógio e Data
-    setInterval(() => {
-        const n = new Date();
-        document.getElementById('time').textContent = n.toLocaleTimeString();
-        document.getElementById('date').textContent = n.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
-    }, 1000);
-
-    // Segurança contra F12 e Inspeção
-    document.onkeydown = function(e) {
-        if(e.keyCode == 123 || (e.ctrlKey && e.shiftKey && (e.keyCode == 'I'.charCodeAt(0) || e.keyCode == 'J'.charCodeAt(0)))) return false;
-    }
-
+    setInterval(() => { document.getElementById('time').innerText = new Date().toLocaleTimeString(); }, 1000);
     init();
 </script>
 </body>
