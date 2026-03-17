@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR - GLOBO REAL</title>
+    <title>RAU RADAR - ESTRELAS DENTRO</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -12,81 +12,78 @@
         body { 
             background: #000; overflow: hidden; height: 100vh; 
             display: flex; justify-content: center; align-items: center;
-        }
-        
-        /* Estrelas Fixas no Fundo */
-        #starfield {
-            position: fixed; width: 100%; height: 100%;
-            background: #000 url('https://www.transparenttextures.com/patterns/stardust.png');
-            z-index: 0; opacity: 0.4;
+            font-family: 'Segoe UI', sans-serif;
         }
 
         .main-container {
             width: 100%; max-width: 500px; height: 95vh;
-            background: rgba(0,0,0,0.9); border: 2px solid #ff0000; border-radius: 25px;
+            background: #000; /* Fundo preto sólido dentro da moldura */
+            border: 3px solid #ff0000; border-radius: 30px;
             position: relative; display: flex; flex-direction: column; overflow: hidden;
-            z-index: 10; box-shadow: 0 0 50px rgba(255, 0, 0, 0.5);
+            box-shadow: 0 0 60px rgba(255, 0, 0, 0.7);
         }
 
-        #globeViz { flex-grow: 1; width: 100%; z-index: 5; }
+        #globeViz { width: 100%; height: 100%; z-index: 5; }
 
-        .header {
-            position: absolute; top: 0; width: 100%; z-index: 1000;
-            padding: 20px; text-align: center; pointer-events: none;
+        .ui-overlay {
+            position: absolute; inset: 0; z-index: 10;
+            pointer-events: none; display: flex; flex-direction: column;
+            justify-content: space-between; padding: 25px;
         }
-        .title { color: #ff0000; font-family: sans-serif; font-weight: bold; font-size: 24px; letter-spacing: 4px; }
-        #status { color: #39ff14; font-size: 10px; font-family: monospace; margin-top: 5px; }
 
-        .footer {
-            padding: 20px; display: flex; justify-content: space-between; align-items: center;
-            background: #000; border-top: 2px solid #ff0000; z-index: 1000;
-        }
+        .header { text-align: center; }
+        .title { color: #ff0000; font-weight: bold; font-size: 28px; letter-spacing: 6px; text-shadow: 0 0 15px #f00; }
+        #status { color: #39ff14; font-family: monospace; font-size: 11px; margin-top: 10px; background: rgba(0,0,0,0.6); padding: 5px; border-radius: 5px; pointer-events: auto; }
+
+        .footer { display: flex; justify-content: space-between; align-items: flex-end; }
         .vis-pill { 
-            background: #ff0000; color: #fff; padding: 10px 20px; border-radius: 10px; 
-            font-weight: bold; font-family: monospace; font-size: 20px;
+            background: #ff0000; color: #fff; padding: 12px 24px; border-radius: 10px; 
+            font-weight: bold; font-family: monospace; font-size: 22px; border: 2px solid #fff;
+            pointer-events: auto;
         }
-        #time { color: #fff; font-family: monospace; font-size: 18px; }
+        #time { color: #fff; font-family: monospace; font-size: 20px; font-weight: bold; }
 
         .m-tag { 
-            background: rgba(0,0,0,0.9); border: 1px solid #f00; padding: 4px 8px;
-            color: #fff; font-size: 11px; border-radius: 4px; display: flex; align-items: center; gap: 5px;
+            background: rgba(0,0,0,0.9); border: 2px solid #f00; padding: 5px 10px;
+            color: #fff; font-size: 12px; border-radius: 5px; font-weight: bold;
+            display: flex; align-items: center; gap: 8px; box-shadow: 0 0 20px #f00;
         }
     </style>
 </head>
-<body>
-
-<div id="starfield"></div>
+<body oncontextmenu="return false">
 
 <div class="main-container">
-    <div class="header">
-        <div class="title">RADAR GLOBO</div>
-        <div id="status">INICIALIZANDO SATÉLITE...</div>
+    <div class="ui-overlay">
+        <div class="header">
+            <div class="title">RADAR GLOBO</div>
+            <div id="status">SISTEMA INICIALIZADO - AGUARDANDO REDE...</div>
+        </div>
+        <div class="footer">
+            <div id="time">00:00:00</div>
+            <div class="vis-pill">LIVE: <span id="count">00</span></div>
+        </div>
     </div>
-
     <div id="globeViz"></div>
-
-    <div class="footer">
-        <div id="time">00:00:00</div>
-        <div class="vis-pill">LIVE: <span id="count">00</span></div>
-    </div>
 </div>
 
 <script>
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
-    let world, ably, channel;
+    let myData = { lat: 0, lng: 0, city: "A LOCALIZAR...", country: "be" };
+    let ably, channel;
 
-    // 1. CRIAR O GLOBO IMEDIATAMENTE (Sem depender de GPS)
-    world = Globe()(document.getElementById('globeViz'))
+    // 1. CRIAR O GLOBO IMEDIATAMENTE
+    const world = Globe()(document.getElementById('globeViz'))
         .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
-        .backgroundColor('rgba(0,0,0,0)')
+        .backgroundColor('rgba(0,0,0,0)') /* Fundo transparente para a cena interna */
         .showAtmosphere(true)
         .atmosphereColor('#ff0000')
+        .atmosphereAltitude(0.15)
         .htmlElement(d => {
             const el = document.createElement('div');
             el.innerHTML = `
-                <div style="display:flex; flex-direction:column; align-items:center;">
+                <div style="display:flex; flex-direction:column; align-items:center; pointer-events:none;">
                     <div class="m-tag">${d.city}</div>
-                    <div style="width:12px; height:12px; background:#f00; border-radius:50%; border:2px solid #fff; box-shadow:0 0 15px #f00;"></div>
+                    <div style="width:12px; height:12px; background:#f00; border-radius:50%; border:2px solid #fff; box-shadow:0 0 20px #f00; margin-top:5px;"></div>
                 </div>`;
             return el;
         });
@@ -94,9 +91,35 @@
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
 
-    // 2. CONECTAR À REDE REAL
+    // --- 2. GERAR ESTRELAS DENTRO DA CENA 3D (E MANTER PARADAS) ---
+    const scene = world.scene();
+    const starGeometry = new THREE.BufferGeometry();
+    const starVertices = [];
+    // Criamos 15 mil estrelas num raio gigante, mas dentro da cena
+    for (let i = 0; i < 15000; i++) {
+        const x = THREE.MathUtils.randFloatSpread(4000);
+        const y = THREE.MathUtils.randFloatSpread(4000);
+        const z = THREE.MathUtils.randFloatSpread(4000);
+        // Garante que as estrelas estão fora do globo mas dentro da cena
+        if (Math.sqrt(x*x + y*y + z*z) > 600) starVertices.push(x, y, z);
+    }
+    starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+    
+    // Material brilhante
+    const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.8, transparent: true, opacity: 0.8 });
+    const stars = new THREE.Points(starGeometry, starMaterial);
+    scene.add(stars);
+
+    // O TRUQUE: Bloquear a rotação das estrelas em relação à câmara
+    world.controls().addEventListener('change', () => {
+        // Copia a posição da câmara para o objeto das estrelas
+        // Isto faz com que as estrelas pareçam paradas no infinito
+        stars.position.copy(world.camera().position);
+    });
+
+    // 3. CONEXÃO REAL
     async function startSystem() {
-        ably = new Ably.Realtime({ key: ABLY_KEY, clientId: 'RADAR-' + Math.random().toString(36).substr(2, 5) });
+        ably = new Ably.Realtime({ key: ABLY_KEY, clientId: 'R-' + Math.random().toString(36).substr(2, 5) });
         channel = ably.channels.get('malajes-live');
 
         channel.presence.subscribe(() => {
@@ -108,37 +131,29 @@
             });
         });
 
-        // 3. LOCALIZAÇÃO REAL SEM CIDADES "HARDCODED"
+        // GPS REAL
         if (navigator.geolocation) {
+            document.getElementById('status').innerText = "SOLICITANDO GPS REAL...";
             navigator.geolocation.getCurrentPosition(async (pos) => {
                 const lat = pos.coords.latitude;
                 const lng = pos.coords.longitude;
-                let cityName = "EU";
-
+                let city = "RASTREADO";
                 try {
                     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
                     const json = await res.json();
-                    cityName = (json.address.city || json.address.town || "LOCALIZADO").toUpperCase();
+                    city = (json.address.city || json.address.town || "ATIVO").toUpperCase();
                 } catch(e) {}
-
-                document.getElementById('status').innerText = "SINAL GPS CONFIRMADO: " + cityName;
-                channel.presence.enter({ lat, lng, city: cityName });
+                document.getElementById('status').innerText = "SINAL GPS: " + city;
+                channel.presence.enter({ lat, lng, city });
                 world.pointOfView({ lat, lng, altitude: 2 }, 2000);
-
             }, () => {
-                document.getElementById('status').innerText = "GPS BLOQUEADO PELO NAVEGADOR";
+                document.getElementById('status').innerText = "GPS BLOQUEADO. MODO REDE IP.";
                 document.getElementById('status').style.color = "yellow";
-                // Apenas um ponto de referência se o GPS falhar totalmente
+                // Apenas referência
                 channel.presence.enter({ lat: 51.2093, lng: 3.2247, city: "GPS OFF" });
             }, { enableHighAccuracy: true });
         }
     }
 
-    setInterval(() => {
-        document.getElementById('time').innerText = new Date().toLocaleTimeString('pt-PT');
-    }, 1000);
-
+    setInterval(() => { document.getElementById('time').innerText = new Date().toLocaleTimeString(); }, 1000);
     startSystem();
-</script>
-</body>
-</html>
