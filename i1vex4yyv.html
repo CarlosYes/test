@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RAU RADAR - REAL PRECISION</title>
+    <title>RAU RADAR - GLOBO FIXO</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -15,55 +15,56 @@
             width: 100%; max-width: 500px; height: 95vh;
             background: #000; border: 2px solid #ff0000; border-radius: 20px;
             display: flex; flex-direction: column; overflow: hidden;
-            box-shadow: 0 0 40px rgba(255, 0, 0, 0.5); position: relative;
+            box-shadow: 0 0 50px rgba(255, 0, 0, 0.4); position: relative;
         }
 
         .header { 
-            position: absolute; top: 0; width: 100%; padding: 15px; 
-            text-align: center; z-index: 10; background: linear-gradient(to bottom, rgba(0,0,0,1), transparent);
+            position: absolute; top: 0; width: 100%; padding: 20px; 
+            text-align: center; z-index: 100; pointer-events: none;
         }
-        .title { color: #ff0000; font-weight: bold; letter-spacing: 3px; text-shadow: 0 0 10px #f00; }
+        .title { color: #ff0000; font-weight: bold; letter-spacing: 4px; text-shadow: 0 0 15px #f00; font-size: 20px; }
+        
+        #status-msg { 
+            background: rgba(0,0,0,0.7); color: #39ff14; font-size: 10px; 
+            margin-top: 8px; padding: 5px; border-radius: 4px; display: inline-block;
+        }
 
-        #globeViz { flex: 1; }
+        #globeViz { width: 100%; height: 100%; z-index: 1; }
 
         .footer { 
-            position: absolute; bottom: 0; width: 100%; padding: 20px;
-            display: flex; justify-content: space-between; align-items: center;
-            z-index: 10; background: linear-gradient(to top, rgba(0,0,0,1), transparent);
+            position: absolute; bottom: 20px; width: 100%; padding: 0 20px;
+            display: flex; justify-content: space-between; align-items: center; z-index: 100;
         }
-        .vis-pill { background: #ff0000; color: #fff; padding: 8px 20px; border-radius: 30px; font-weight: bold; border: 1px solid #fff; }
-        #time { color: #fff; font-weight: bold; font-size: 18px; }
+        .vis-pill { background: #ff0000; color: #fff; padding: 8px 15px; border-radius: 20px; font-weight: bold; border: 1px solid #fff; }
 
         .m-tag { 
-            background: rgba(0,0,0,0.9); border: 1px solid #ff0000; padding: 5px 10px;
-            color: #fff; font-size: 12px; border-radius: 4px; font-weight: bold;
-            display: flex; align-items: center; gap: 6px; box-shadow: 0 0 15px #f00;
+            background: rgba(0,0,0,0.9); border: 1px solid #ff0000; padding: 4px 8px;
+            color: #fff; font-size: 11px; border-radius: 4px; display: flex; align-items: center; gap: 5px;
         }
     </style>
 </head>
-<body oncontextmenu="return false">
+<body>
 
 <div class="container">
     <div class="header">
-        <div class="title">RADAR EM TEMPO REAL</div>
-        <div id="status" style="color: #39ff14; font-size: 10px; margin-top: 5px;">A AGUARDAR GPS...</div>
+        <div class="title">RAU RADAR SYSTEM</div>
+        <div id="status-msg">A INICIALIZAR GLOBO...</div>
     </div>
 
     <div id="globeViz"></div>
 
     <div class="footer">
-        <div id="time">00:00:00</div>
+        <div id="time" style="color:#fff; font-weight:bold;">00:00:00</div>
         <div class="vis-pill">LIVE: <span id="count">00</span></div>
     </div>
 </div>
 
 <script>
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
+    let myData = { lat: 51.2093, lng: 3.2247, city: "BRUGES (DEFAULT)", country: "be" };
     let ably, channel;
-    
-    // Objeto vazio para forçar a detecção real
-    let myData = { lat: 0, lng: 0, city: "A LOCALIZAR...", country: "be" };
 
+    // 1. INICIALIZAR O GLOBO IMEDIATAMENTE (PARA NÃO DESAPARECER)
     const world = Globe()(document.getElementById('globeViz'))
         .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
         .backgroundColor('#000000')
@@ -73,30 +74,28 @@
             const el = document.createElement('div');
             el.innerHTML = `
                 <div style="display:flex; flex-direction:column; align-items:center;">
-                    <div class="m-tag">
-                        <img src="https://flagcdn.com/w20/${d.country.toLowerCase()}.png" width="16"> 
-                        <span>${d.city}</span>
-                    </div>
-                    <div style="width:12px; height:12px; background:#f00; border-radius:50%; box-shadow:0 0 20px #f00; border:2px solid #fff; margin-top:5px;"></div>
+                    <div class="m-tag"><img src="https://flagcdn.com/w20/${d.country.toLowerCase()}.png" width="16"> ${d.city}</div>
+                    <div style="width:10px; height:10px; background:#f00; border-radius:50%; box-shadow:0 0 15px #f00; border:1px solid #fff;"></div>
                 </div>`;
             return el;
         });
 
     world.controls().autoRotate = true;
-    world.controls().autoRotateSpeed = 0.5;
+    world.controls().autoRotateSpeed = 0.6;
 
-    // Estrelas Fixas (Não giram com a terra)
+    // Estrelas Fixas
     const scene = world.scene();
     const starGeo = new THREE.BufferGeometry();
     const starCoords = [];
-    for (let i = 0; i < 10000; i++) {
+    for (let i = 0; i < 8000; i++) {
         starCoords.push(THREE.MathUtils.randFloatSpread(4000), THREE.MathUtils.randFloatSpread(4000), THREE.MathUtils.randFloatSpread(4000));
     }
     starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starCoords, 3));
-    scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.8, transparent: true, opacity: 0.8 })));
+    scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.7 })));
 
-    async function startLiveRadar() {
-        ably = new Ably.Realtime({ key: ABLY_KEY, clientId: 'R-' + Math.random().toString(36).substr(2, 5) });
+    async function initRadar() {
+        // Conexão Ably
+        ably = new Ably.Realtime({ key: ABLY_KEY, clientId: 'U-' + Math.random().toString(36).substr(2, 5) });
         channel = ably.channels.get('malajes-live');
 
         channel.presence.subscribe(() => {
@@ -107,42 +106,46 @@
             });
         });
 
-        // --- O CORAÇÃO DO SISTEMA: GPS REAL ---
+        // Tentar GPS Real
         if (navigator.geolocation) {
+            document.getElementById('status-msg').innerText = "A SOLICITAR GPS REAL...";
+            
             navigator.geolocation.getCurrentPosition(async (pos) => {
                 myData.lat = pos.coords.latitude;
                 myData.lng = pos.coords.longitude;
-
-                // Busca o nome real da cidade pelas coordenadas exatas
+                
                 try {
-                    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${myData.lat}&lon=${myData.lng}`);
-                    const json = await response.json();
-                    myData.city = (json.address.city || json.address.town || json.address.village || "LOCALIZAÇÃO ATIVA").toUpperCase();
+                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${myData.lat}&lon=${myData.lng}`);
+                    const json = await res.json();
+                    myData.city = (json.address.city || json.address.town || "LOCALIZADO").toUpperCase();
                     myData.country = json.address.country_code;
-                    document.getElementById('status').innerText = "SINAL GPS: " + myData.city;
-                } catch(e) { myData.city = "RADAR ATIVO"; }
+                } catch(e) { myData.city = "GPS ATIVO"; }
 
-                channel.presence.enter(myData);
-                world.pointOfView({ lat: myData.lat, lng: myData.lng, altitude: 1.5 }, 2500);
-
-            }, async (error) => {
-                // Se o GPS for bloqueado, usamos o IP como última esperança
-                document.getElementById('status').innerText = "GPS BLOQUEADO. USANDO IP (MENOS PRECISO)";
-                const res = await fetch('https://ipapi.co/json/');
-                const d = await res.json();
-                myData = { lat: d.latitude, lng: d.longitude, city: d.city.toUpperCase(), country: d.country_code.toLowerCase() };
+                document.getElementById('status-msg').innerText = "SINAL GPS CONFIRMADO: " + myData.city;
+                document.getElementById('status-msg').style.color = "#39ff14";
+                
                 channel.presence.enter(myData);
                 world.pointOfView({ lat: myData.lat, lng: myData.lng, altitude: 2 }, 2000);
-            }, { 
-                enableHighAccuracy: true, // FORÇA O GPS
-                timeout: 10000, 
-                maximumAge: 0 
-            });
+
+            }, async (err) => {
+                // Se falhar, usa IP mas o GLOBO CONTINUA LÁ
+                document.getElementById('status-msg').innerText = "GPS BLOQUEADO. A USAR IP (140KM DE ERRO)";
+                document.getElementById('status-msg').style.color = "#ff4444";
+                
+                const res = await fetch('https://ipapi.co/json/');
+                const d = await res.json();
+                myData = { lat: d.latitude, lng: d.longitude, city: d.city.toUpperCase() + " (IP)", country: d.country_code.toLowerCase() };
+                
+                channel.presence.enter(myData);
+                world.pointOfView({ lat: myData.lat, lng: myData.lng, altitude: 2 }, 2000);
+            }, { enableHighAccuracy: true, timeout: 5000 });
         }
     }
 
     setInterval(() => { document.getElementById('time').innerText = new Date().toLocaleTimeString(); }, 1000);
-    startLiveRadar();
+    
+    // Inicia tudo
+    initRadar();
 </script>
 </body>
 </html>
