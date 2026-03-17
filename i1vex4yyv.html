@@ -3,136 +3,188 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RAU RADAR v200 - STATIC STARS</title>
+    <title>RAU RADAR - ELITE EDITION</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: monospace; height: 100vh; width: 100vw; }
-        #globeViz { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', monospace; }
+        body { background: #000; overflow: hidden; height: 100vh; width: 100vw; display: flex; justify-content: center; align-items: center; }
         
-        .p-hud {
-            position: absolute; top: 20px; left: 20px;
-            background: rgba(0,0,0,0.8); border-left: 3px solid #39ff14;
-            padding: 10px 15px; color: #fff; z-index: 1000;
-            border-radius: 0 2px 2px 0; font-size: 18px; font-weight: bold;
-            pointer-events: none; letter-spacing: 1px;
+        /* Container Principal com Estética Malajes */
+        .main-container {
+            width: 100%; max-width: 500px; height: 95vh;
+            background: rgba(10, 0, 0, 0.95);
+            border: 2px solid #ff0000;
+            border-radius: 20px;
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.4);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
-        .live-label { color: #39ff14; }
 
-        .m-rau { display: flex; flex-direction: column; align-items: center; pointer-events: none; }
-        .m-tag { 
-            display: flex; align-items: center; gap: 6px; 
-            background: rgba(0, 0, 0, 0.9); padding: 4px 8px; 
-            border: 1px solid #39ff14; border-radius: 2px; margin-bottom: 5px;
+        /* HUD Superior */
+        .header {
+            padding: 15px;
+            background: rgba(150, 0, 0, 0.2);
+            border-bottom: 1px solid rgba(255, 0, 0, 0.3);
+            text-align: center;
+            z-index: 10;
         }
-        .m-flag { width: 18px; height: auto; }
-        .m-city { color: #fff; font-size: 10px; font-weight: bold; text-transform: uppercase; }
+
+        .title { color: #ff4444; font-size: 20px; font-weight: bold; letter-spacing: 3px; text-shadow: 0 0 10px #ff0000; }
         
-        .dot-active { 
-            width: 8px; height: 8px; background: #39ff14; border-radius: 50%; 
-            box-shadow: 0 0 15px #39ff14; border: 1.5px solid #fff;
-            animation: pulse 1.5s infinite;
+        /* Área do Globo */
+        #globeViz { flex-grow: 1; width: 100%; position: relative; background: #000; }
+
+        /* HUD de Informação Estilo Malajes */
+        .info-panel {
+            display: flex; justify-content: space-around; align-items: center;
+            padding: 12px; background: #050000; color: #fff;
         }
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.2); }
-            100% { transform: scale(1); }
+
+        .vis-pill {
+            background: #ff0000; padding: 5px 15px; border-radius: 20px;
+            font-weight: bold; font-size: 18px; border: 1px solid #fff;
+            box-shadow: 0 0 10px #ff0000;
+        }
+
+        #time { font-size: 20px; font-weight: bold; color: #ff4444; }
+
+        /* Lista de Localizações */
+        .location-list {
+            height: 150px; overflow-y: auto; background: #000;
+            padding: 10px; border-top: 2px solid #300;
+        }
+
+        .location-item {
+            padding: 8px; background: rgba(255, 0, 0, 0.1);
+            border-left: 4px solid #f00; border-radius: 4px;
+            display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+            font-size: 12px; font-weight: bold; color: #fff; text-transform: uppercase;
+        }
+        .location-item img { width: 20px; border-radius: 2px; }
+
+        /* Marcadores no Globo */
+        .m-tag { 
+            display: flex; align-items: center; gap: 5px; 
+            background: rgba(0,0,0,0.85); padding: 3px 7px; 
+            border: 1px solid #ff0000; border-radius: 3px;
+            color: #fff; font-size: 9px; white-space: nowrap;
         }
     </style>
 </head>
-<body>
+<body oncontextmenu="return false" onselectstart="return false" ondragstart="return false">
 
-<div id="globeViz"></div>
+<div class="main-container">
+    <div class="header">
+        <div class="title">RAU RADAR ELITE</div>
+        <div id="date" style="font-size: 10px; color: #aaa; margin-top: 5px;"></div>
+    </div>
 
-<div class="p-hud">
-    RAU RADAR: <span id="count" class="live-label">0</span>
+    <div id="globeViz"></div>
+
+    <div class="info-panel">
+        <div id="time">00:00:00</div>
+        <div class="vis-pill">LIVE: <span id="count">00</span></div>
+    </div>
+
+    <div class="location-list" id="locationData"></div>
 </div>
 
 <script>
-    const RAU_ID = 'STATIONARY-' + Math.random().toString(36).substr(2, 5);
+    // Configurações de Estado (Persistência)
+    const settings = {
+        volume: localStorage.getItem('rau_volume') || 0.5,
+        autoplay: localStorage.getItem('rau_autoplay') || 'true'
+    };
+
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
-
-    const hour = new Date().getHours();
-    const isNight = hour < 6 || hour > 18;
-    const globeImg = isNight ? '//unpkg.com/three-globe/example/img/earth-night.jpg' : '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
-
     let archive = new Map();
 
+    // Inicializar Globo
     const world = Globe()(document.getElementById('globeViz'))
-        .globeImageUrl(globeImg)
+        .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
         .backgroundColor('#000000')
         .showAtmosphere(true)
-        .atmosphereColor(isNight ? '#39ff14' : '#87CEEB')
+        .atmosphereColor('#ff0000')
         .htmlElement(d => {
             const el = document.createElement('div');
-            el.className = 'm-rau';
-            if (d.status === 'active') {
-                const c = (d.country || '??').toLowerCase();
-                const flag = c !== '??' ? `<img src="https://flagcdn.com/w40/${c}.png" class="m-flag">` : '';
-                el.innerHTML = `<div class="m-tag">${flag}<span class="m-city">${d.city}</span></div><div class="dot-active"></div>`;
-            }
+            const c = (d.country || '??').toLowerCase();
+            el.innerHTML = `
+                <div style="display:flex; flex-direction:column; align-items:center;">
+                    <div class="m-tag">
+                        <img src="https://flagcdn.com/w20/${c}.png" style="width:15px">
+                        <span>${d.city}</span>
+                    </div>
+                    <div style="width:6px; height:6px; background:#ff0000; border-radius:50%; box-shadow:0 0 10px #ff0000; border:1px solid #fff;"></div>
+                </div>`;
             return el;
         });
 
     world.controls().autoRotate = true;
-    world.controls().autoRotateSpeed = 0.4;
+    world.controls().autoRotateSpeed = 0.5;
 
-    // --- CÉU DE ESTRELAS REALMENTE ESTÁTICO ---
+    // --- FIRMAMENTO ESTÁTICO ---
     const scene = world.scene();
-    
-    // Criamos uma esfera gigante invertida para as estrelas
-    const starGeometry = new THREE.SphereGeometry(900, 64, 64);
-    const starMaterial = new THREE.MeshBasicMaterial({
-        map: new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/night-sky.png'),
-        side: THREE.BackSide, // Renderiza por dentro da esfera
-        transparent: true,
-        opacity: 0.5
-    });
-    
-    const starSky = new THREE.Mesh(starGeometry, starMaterial);
-    scene.add(starSky);
+    const starGeometry = new THREE.BufferGeometry();
+    const starVertices = [];
+    for (let i = 0; i < 6000; i++) {
+        const x = THREE.MathUtils.randFloatSpread(3000);
+        const y = THREE.MathUtils.randFloatSpread(3000);
+        const z = THREE.MathUtils.randFloatSpread(3000);
+        if (Math.sqrt(x*x + y*y + z*z) > 400) starVertices.push(x, y, z);
+    }
+    starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+    const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.7, transparent: true, opacity: 0.5 });
+    scene.add(new THREE.Points(starGeometry, starMaterial));
 
-    // Ajuste: Impedir que as estrelas sigam a rotação da câmara
-    world.controls().addEventListener('change', () => {
-        // Isto mantém a esfera de estrelas fixa na posição da câmara, 
-        // mas sem herdar a rotação interna se necessário
-        starSky.position.copy(world.camera().position);
-    });
-
+    // Lógica de Sincronização
     async function init() {
         try {
             const res = await fetch('https://speed.cloudflare.com/meta');
             const data = await res.json();
             const geo = {
-                lat: data.latitude, 
-                lng: data.longitude,
-                city: data.city ? data.city.toUpperCase() : "MECHELEN",
-                country: data.country ? data.country.toLowerCase() : "be",
-                status: 'active'
+                lat: data.latitude, lng: data.longitude,
+                city: (data.city || "EUROPE").toUpperCase(),
+                country: (data.country || "be").toLowerCase()
             };
 
-            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: RAU_ID });
-            const channel = ably.channels.get('rau-live-radar');
+            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: 'RAU-' + Math.random().toString(36).substr(2, 4) });
+            const channel = ably.channels.get('rau-elite-radar');
 
-            ably.connection.on('connected', () => {
-                channel.presence.enter(geo);
-                channel.presence.subscribe(msg => {
-                    if (['enter', 'present', 'update'].includes(msg.action)) archive.set(msg.clientId, {...msg.data, status: 'active'});
-                    const nodes = Array.from(archive.values());
-                    document.getElementById('count').innerText = nodes.length;
-                    world.htmlElementsData(nodes);
+            channel.presence.subscribe(() => {
+                channel.presence.get((err, members) => {
+                    const list = document.getElementById("locationData");
+                    list.innerHTML = "";
+                    const activeMembers = members.map(m => {
+                        const div = document.createElement("div");
+                        div.className = "location-item";
+                        div.innerHTML = `<img src="https://flagcdn.com/w40/${m.data.country}.png"> <span>${m.data.city}</span>`;
+                        list.appendChild(div);
+                        return m.data;
+                    });
+                    document.getElementById('count').innerText = activeMembers.length.toString().padStart(2, '0');
+                    world.htmlElementsData(activeMembers);
                 });
             });
-            
+            channel.presence.enter(geo);
             world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 2 }, 2000);
-        } catch (e) { console.warn("ERR"); }
+        } catch (e) { console.error("OFFLINE MODE"); }
     }
 
-    window.addEventListener('resize', () => {
-        world.width(window.innerWidth);
-        world.height(window.innerHeight);
-    });
+    // Relógio e Data
+    setInterval(() => {
+        const n = new Date();
+        document.getElementById('time').textContent = n.toLocaleTimeString();
+        document.getElementById('date').textContent = n.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
+    }, 1000);
+
+    // Segurança contra F12 e Inspeção
+    document.onkeydown = function(e) {
+        if(e.keyCode == 123 || (e.ctrlKey && e.shiftKey && (e.keyCode == 'I'.charCodeAt(0) || e.keyCode == 'J'.charCodeAt(0)))) return false;
+    }
 
     init();
 </script>
