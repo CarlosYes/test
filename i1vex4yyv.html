@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RAU RADAR - FINAL ELITE</title>
+    <title>RAU RADAR - FINAL FIX</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -64,11 +64,13 @@
 
 <script>
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
+    // Padrão Bruges para evitar erro de 140km do IP
     let myData = { lat: 51.2093, lng: 3.2247, city: "BRUGES", country: "be" };
     let ably, channel;
 
     const world = Globe()(document.getElementById('globeViz'))
-        .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
+        .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
+        .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
         .backgroundColor('#000000')
         .showAtmosphere(true)
         .atmosphereColor('#ff0000')
@@ -86,19 +88,18 @@
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
 
-    // --- ESTRELAS PARADAS (FIRMAMENTO ESTÁTICO DEFINITIVO) ---
+    // --- ESTRELAS FIXAS (FIRMAMENTO ESTÁTICO) ---
     const scene = world.scene();
     const starGeometry = new THREE.BufferGeometry();
     const starVertices = [];
-    for (let i = 0; i < 12000; i++) {
+    for (let i = 0; i < 10000; i++) {
         const x = THREE.MathUtils.randFloatSpread(4000);
         const y = THREE.MathUtils.randFloatSpread(4000);
         const z = THREE.MathUtils.randFloatSpread(4000);
         if (Math.sqrt(x*x + y*y + z*z) > 550) starVertices.push(x, y, z);
     }
     starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
-    const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.9, transparent: true, opacity: 0.8 });
-    scene.add(new THREE.Points(starGeometry, starMaterial));
+    scene.add(new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: 0xffffff, size: 0.8, transparent: true, opacity: 0.8 })));
 
     async function init() {
         ably = new Ably.Realtime({ key: ABLY_KEY, clientId: 'M-' + Math.random().toString(36).substr(2, 5) });
@@ -112,7 +113,7 @@
             });
         });
 
-        // RESOLVER O ERRO DE 140KM: PEDIR LOCALIZAÇÃO REAL
+        // Corrigir localização via GPS real
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(async (pos) => {
                 myData.lat = pos.coords.latitude;
@@ -120,14 +121,12 @@
                 try {
                     const rev = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${myData.lat}&lon=${myData.lng}`);
                     const res = await rev.json();
-                    myData.city = (res.address.city || res.address.town || res.address.village || "BRUGES").toUpperCase();
-                    myData.country = res.address.country_code.toLowerCase();
+                    myData.city = (res.address.city || res.address.town || "BRUGES").toUpperCase();
                 } catch(e) {}
-                document.getElementById('status-info').innerText = "PRECISÃO GPS: ATIVA";
+                document.getElementById('status-info').innerText = "CONEXÃO SEGURA: BRUGES ATIVA";
                 channel.presence.enter(myData);
                 world.pointOfView({ lat: myData.lat, lng: myData.lng, altitude: 2 }, 2000);
             }, () => {
-                // Se o utilizador recusar GPS, entra com Bruges por defeito em vez de Mechelen
                 channel.presence.enter(myData);
             });
         } else {
