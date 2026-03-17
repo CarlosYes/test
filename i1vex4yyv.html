@@ -12,82 +12,81 @@
         body { 
             background: #000; overflow: hidden; height: 100vh; 
             display: flex; justify-content: center; align-items: center;
-            /* Estrelas fixas no fundo */
-            background-image: radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 40px);
-            background-size: 100px 100px;
         }
         
+        /* Estrelas Fixas no Fundo */
+        #starfield {
+            position: fixed; width: 100%; height: 100%;
+            background: #000 url('https://www.transparenttextures.com/patterns/stardust.png');
+            z-index: 0; opacity: 0.4;
+        }
+
         .main-container {
             width: 100%; max-width: 500px; height: 95vh;
-            background: #000; border: 3px solid #ff0000; border-radius: 30px;
+            background: rgba(0,0,0,0.9); border: 2px solid #ff0000; border-radius: 25px;
             position: relative; display: flex; flex-direction: column; overflow: hidden;
-            box-shadow: 0 0 60px rgba(255, 0, 0, 0.7);
+            z-index: 10; box-shadow: 0 0 50px rgba(255, 0, 0, 0.5);
         }
 
-        #globeViz { width: 100%; height: 100%; z-index: 5; }
+        #globeViz { flex-grow: 1; width: 100%; z-index: 5; }
 
-        .overlay {
-            position: absolute; width: 100%; height: 100%;
-            pointer-events: none; z-index: 10;
-            display: flex; flex-direction: column; justify-content: space-between;
-            padding: 25px;
+        .header {
+            position: absolute; top: 0; width: 100%; z-index: 1000;
+            padding: 20px; text-align: center; pointer-events: none;
         }
+        .title { color: #ff0000; font-family: sans-serif; font-weight: bold; font-size: 24px; letter-spacing: 4px; }
+        #status { color: #39ff14; font-size: 10px; font-family: monospace; margin-top: 5px; }
 
-        .header { text-align: center; }
-        .title { color: #ff0000; font-family: 'Arial Black', sans-serif; font-size: 28px; letter-spacing: 6px; text-shadow: 0 0 15px #f00; }
-        #status { color: #39ff14; font-family: monospace; font-size: 11px; margin-top: 10px; text-transform: uppercase; background: rgba(0,0,0,0.6); padding: 5px; border-radius: 5px; pointer-events: auto; }
-
-        .footer { display: flex; justify-content: space-between; align-items: flex-end; }
+        .footer {
+            padding: 20px; display: flex; justify-content: space-between; align-items: center;
+            background: #000; border-top: 2px solid #ff0000; z-index: 1000;
+        }
         .vis-pill { 
-            background: #ff0000; color: #fff; padding: 12px 24px; border-radius: 10px; 
-            font-weight: bold; font-family: monospace; font-size: 22px; border: 2px solid #fff;
-            pointer-events: auto;
+            background: #ff0000; color: #fff; padding: 10px 20px; border-radius: 10px; 
+            font-weight: bold; font-family: monospace; font-size: 20px;
         }
-        #time { color: #fff; font-family: monospace; font-size: 20px; font-weight: bold; text-shadow: 0 0 5px #000; }
+        #time { color: #fff; font-family: monospace; font-size: 18px; }
 
-        /* Tag de localização real no Globo */
         .m-tag { 
-            background: rgba(0,0,0,0.9); border: 2px solid #f00; padding: 5px 10px;
-            color: #fff; font-size: 12px; border-radius: 5px; font-weight: bold;
-            display: flex; align-items: center; gap: 8px; box-shadow: 0 0 20px #f00;
+            background: rgba(0,0,0,0.9); border: 1px solid #f00; padding: 4px 8px;
+            color: #fff; font-size: 11px; border-radius: 4px; display: flex; align-items: center; gap: 5px;
         }
     </style>
 </head>
-<body oncontextmenu="return false">
+<body>
+
+<div id="starfield"></div>
 
 <div class="main-container">
-    <div class="overlay">
-        <div class="header">
-            <div class="title">RADAR GLOBO</div>
-            <div id="status">SISTEMA INICIALIZADO - AGUARDANDO REDE...</div>
-        </div>
-        <div class="footer">
-            <div id="time">00:00:00</div>
-            <div class="vis-pill">LIVE: <span id="count">00</span></div>
-        </div>
+    <div class="header">
+        <div class="title">RADAR GLOBO</div>
+        <div id="status">INICIALIZANDO SATÉLITE...</div>
     </div>
 
     <div id="globeViz"></div>
+
+    <div class="footer">
+        <div id="time">00:00:00</div>
+        <div class="vis-pill">LIVE: <span id="count">00</span></div>
+    </div>
 </div>
 
 <script>
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
-    let myData = { lat: 0, lng: 0, city: "A LOCALIZAR...", country: "be" };
-    let ably, channel;
+    let world, ably, channel;
 
-    // 1. DESENHAR O GLOBO IMEDIATAMENTE (PARA NÃO DESAPARECER)
-    const world = Globe()(document.getElementById('globeViz'))
+    // 1. CRIAR O GLOBO IMEDIATAMENTE (Sem depender de GPS)
+    world = Globe()(document.getElementById('globeViz'))
         .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
         .backgroundColor('rgba(0,0,0,0)')
         .showAtmosphere(true)
         .atmosphereColor('#ff0000')
-        .atmosphereAltitude(0.2)
         .htmlElement(d => {
             const el = document.createElement('div');
             el.innerHTML = `
                 <div style="display:flex; flex-direction:column; align-items:center;">
                     <div class="m-tag">${d.city}</div>
-                    <div style="width:12px; height:12px; background:#f00; border-radius:50%; border:2px solid #fff; box-shadow:0 0 20px #f00;"></div>
+                    <div style="width:12px; height:12px; background:#f00; border-radius:50%; border:2px solid #fff; box-shadow:0 0 15px #f00;"></div>
                 </div>`;
             return el;
         });
@@ -95,8 +94,8 @@
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
 
-    // 2. CONEXÃO REAL
-    async function initSystem() {
+    // 2. CONECTAR À REDE REAL
+    async function startSystem() {
         ably = new Ably.Realtime({ key: ABLY_KEY, clientId: 'RADAR-' + Math.random().toString(36).substr(2, 5) });
         channel = ably.channels.get('malajes-live');
 
@@ -109,29 +108,28 @@
             });
         });
 
-        // 3. GPS REAL (SEM VALORES DE ESPERA)
+        // 3. LOCALIZAÇÃO REAL SEM CIDADES "HARDCODED"
         if (navigator.geolocation) {
-            document.getElementById('status').innerText = "SOLICITANDO COORDENADAS GPS...";
-            
             navigator.geolocation.getCurrentPosition(async (pos) => {
-                myData.lat = pos.coords.latitude;
-                myData.lng = pos.coords.longitude;
-                
-                try {
-                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${myData.lat}&lon=${myData.lng}`);
-                    const json = await res.json();
-                    myData.city = (json.address.city || json.address.town || "LOCALIZADO").toUpperCase();
-                } catch(e) { myData.city = "GPS ATIVO"; }
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                let cityName = "EU";
 
-                document.getElementById('status').innerText = "SINAL GPS: " + myData.city;
-                channel.presence.enter(myData);
-                world.pointOfView({ lat: myData.lat, lng: myData.lng, altitude: 2 }, 2000);
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+                    const json = await res.json();
+                    cityName = (json.address.city || json.address.town || "LOCALIZADO").toUpperCase();
+                } catch(e) {}
+
+                document.getElementById('status').innerText = "SINAL GPS CONFIRMADO: " + cityName;
+                channel.presence.enter({ lat, lng, city: cityName });
+                world.pointOfView({ lat, lng, altitude: 2 }, 2000);
+
             }, () => {
-                document.getElementById('status').innerText = "GPS BLOQUEADO - RADAR EM MODO REDE";
+                document.getElementById('status').innerText = "GPS BLOQUEADO PELO NAVEGADOR";
                 document.getElementById('status').style.color = "yellow";
-                // Fallback apenas para não travar, mas sem mentir a localização exata
-                myData.lat = 51.2093; myData.lng = 3.2247; myData.city = "BRUGES (IP)";
-                channel.presence.enter(myData);
+                // Apenas um ponto de referência se o GPS falhar totalmente
+                channel.presence.enter({ lat: 51.2093, lng: 3.2247, city: "GPS OFF" });
             }, { enableHighAccuracy: true });
         }
     }
@@ -140,7 +138,7 @@
         document.getElementById('time').innerText = new Date().toLocaleTimeString('pt-PT');
     }, 1000);
 
-    initSystem();
+    startSystem();
 </script>
 </body>
 </html>
