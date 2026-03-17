@@ -3,94 +3,125 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RAU RADAR - ELITE PRECISION</title>
+    <title>RAU RADAR - BRUGES EDITION</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
-        body { background: #000; overflow: hidden; height: 100vh; display: flex; justify-content: center; align-items: center; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', monospace; }
+        body { background: #000; overflow: hidden; height: 100vh; width: 100vw; display: flex; justify-content: center; align-items: center; }
         
-        .container { 
-            width: 100%; max-width: 450px; height: 92vh;
-            background: rgba(15, 0, 0, 0.98); border: 2px solid #ff0000; border-radius: 15px;
-            box-shadow: 0 0 30px rgba(255, 0, 0, 0.6); display: flex; flex-direction: column; overflow: hidden;
+        .main-container {
+            width: 100%; max-width: 480px; height: 95vh;
+            background: rgba(10, 0, 0, 0.98);
+            border: 2px solid #ff0000; border-radius: 20px;
+            box-shadow: 0 0 40px rgba(255, 0, 0, 0.6);
+            position: relative; display: flex; flex-direction: column; overflow: hidden;
         }
 
-        .header { padding: 15px; text-align: center; border-bottom: 1px solid #400; background: #1a0000; }
-        .title { color: #ff4444; font-weight: bold; letter-spacing: 2px; text-shadow: 0 0 10px #f00; }
-
-        #globeViz { flex: 1; position: relative; }
-
-        .footer-info { 
-            background: #050000; padding: 12px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #400;
+        .header {
+            padding: 15px; background: rgba(150, 0, 0, 0.2);
+            border-bottom: 1px solid rgba(255, 0, 0, 0.4);
+            text-align: center; z-index: 10;
         }
 
-        .vis-pill { 
-            background: #ff0000; color: #fff; padding: 5px 15px; border-radius: 20px; font-weight: bold; border: 1px solid #fff; box-shadow: 0 0 10px #f00;
+        .title { color: #ff4444; font-size: 22px; font-weight: bold; letter-spacing: 3px; text-shadow: 0 0 10px #ff0000; }
+        
+        #globeViz { flex-grow: 1; width: 100%; position: relative; background: #000; }
+
+        .info-panel {
+            display: flex; justify-content: space-around; align-items: center;
+            padding: 15px; background: #050000; color: #fff; border-top: 1px solid #300;
         }
 
-        /* Botão para forçar a cidade correta */
-        .gps-fix {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            background: #39ff14; color: #000; border: none; padding: 8px 15px;
-            border-radius: 5px; font-weight: bold; cursor: pointer; z-index: 100;
-            font-size: 11px; box-shadow: 0 0 15px #39ff14;
+        .vis-pill {
+            background: #ff0000; padding: 6px 18px; border-radius: 25px;
+            font-weight: bold; font-size: 20px; border: 1px solid #fff;
+            box-shadow: 0 0 15px #ff0000;
         }
 
-        .location-log { height: 100px; overflow-y: auto; background: #000; padding: 10px; font-size: 11px; }
-        .log-entry { display: flex; align-items: center; gap: 8px; color: #ccc; margin-bottom: 5px; border-left: 2px solid #f00; padding-left: 5px; }
+        #time { font-size: 22px; font-weight: bold; color: #fff; }
+
+        .location-list {
+            height: 140px; overflow-y: auto; background: #000;
+            padding: 12px; border-top: 2px solid #400;
+        }
+
+        .location-item {
+            padding: 10px; background: rgba(255, 0, 0, 0.1);
+            border-left: 5px solid #f00; border-radius: 4px;
+            display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+            font-size: 13px; font-weight: bold; color: #fff; text-transform: uppercase;
+        }
+        .location-item img { width: 22px; border-radius: 2px; }
+
+        /* Marcador no Globo */
+        .m-tag { 
+            display: flex; align-items: center; gap: 6px; 
+            background: rgba(0,0,0,0.9); padding: 4px 8px; 
+            border: 1px solid #ff0000; border-radius: 4px;
+            color: #fff; font-size: 10px; font-weight: bold;
+        }
     </style>
 </head>
-<body oncontextmenu="return false">
+<body oncontextmenu="return false" onselectstart="return false" ondragstart="return false">
 
-<div class="container">
+<div class="main-container">
     <div class="header">
-        <div class="title">RADIO MALAJES SYSTEM</div>
+        <div class="title">RADIO MALAJES v2.0</div>
+        <div id="status-msg" style="font-size: 10px; color: #39ff14; margin-top: 5px;">SISTEMA DE PRECISÃO ATIVO</div>
     </div>
 
-    <div id="globeViz">
-        <button class="gps-fix" onclick="getPreciseLocation()">ATIVAR LOCALIZAÇÃO REAL</button>
+    <div id="globeViz"></div>
+
+    <div class="info-panel">
+        <div id="time">00:00:00</div>
+        <div class="vis-pill">👥 <span id="count">00</span></div>
     </div>
 
-    <div class="footer-info">
-        <div id="time" style="color:#fff; font-weight:bold;">00:00:00</div>
-        <div class="vis-pill">LIVE: <span id="count">00</span></div>
-    </div>
-
-    <div class="location-log" id="locationData"></div>
+    <div class="location-list" id="locationData"></div>
 </div>
 
 <script>
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
-    let myData = { lat: 0, lng: 0, city: "A RASTREAR...", country: "??" };
+    let myData = { lat: 51.2093, lng: 3.2247, city: "BRUGES", country: "be" }; // Focado em Bruges
     let ably, channel;
 
     const world = Globe()(document.getElementById('globeViz'))
         .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
-        .backgroundColor('rgba(0,0,0,0)')
+        .backgroundColor('#000000')
         .showAtmosphere(true)
         .atmosphereColor('#ff0000')
         .htmlElement(d => {
             const el = document.createElement('div');
-            el.innerHTML = `<div style="color:#fff; font-size:10px; background:rgba(20,0,0,0.9); border:1px solid #f00; padding:3px 6px; border-radius:3px; display:flex; align-items:center; gap:5px; white-space:nowrap;">
-                <img src="https://flagcdn.com/w20/${d.country.toLowerCase()}.png" width="14"> ${d.city}</div>
-                <div style="width:8px; height:8px; background:#f00; border-radius:50%; margin:4px auto 0; box-shadow:0 0 12px #f00; border:1px solid #fff;"></div>`;
+            const c = (d.country || 'be').toLowerCase();
+            el.innerHTML = `
+                <div style="display:flex; flex-direction:column; align-items:center; pointer-events:none;">
+                    <div class="m-tag">
+                        <img src="https://flagcdn.com/w20/${c}.png" style="width:16px">
+                        <span>${d.city}</span>
+                    </div>
+                    <div style="width:8px; height:8px; background:#ff0000; border-radius:50%; box-shadow:0 0 15px #ff0000; border:1.5px solid #fff;"></div>
+                </div>`;
             return el;
         });
 
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.5;
 
-    // --- FIRMAMENTO ESTÁTICO ---
+    // --- ESTRELAS IMÓVEIS (FIRMAMENTO ESTÁTICO) ---
     const scene = world.scene();
-    const starGeo = new THREE.BufferGeometry();
-    const starCoords = [];
-    for (let i = 0; i < 7000; i++) {
-        starCoords.push(THREE.MathUtils.randFloatSpread(3000), THREE.MathUtils.randFloatSpread(3000), THREE.MathUtils.randFloatSpread(3000));
+    const starGeometry = new THREE.BufferGeometry();
+    const starVertices = [];
+    for (let i = 0; i < 9000; i++) {
+        const x = THREE.MathUtils.randFloatSpread(3500);
+        const y = THREE.MathUtils.randFloatSpread(3500);
+        const z = THREE.MathUtils.randFloatSpread(3500);
+        if (Math.sqrt(x*x + y*y + z*z) > 450) starVertices.push(x, y, z);
     }
-    starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starCoords, 3));
-    scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.7 })));
+    starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+    const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.7, transparent: true, opacity: 0.6 });
+    scene.add(new THREE.Points(starGeometry, starMaterial));
 
     async function init() {
         ably = new Ably.Realtime({ key: ABLY_KEY, clientId: 'M-' + Math.random().toString(36).substr(2, 5) });
@@ -100,46 +131,49 @@
             channel.presence.get((err, members) => {
                 const list = document.getElementById("locationData");
                 list.innerHTML = "";
-                const pts = members.map(m => {
-                    const entry = document.createElement("div");
-                    entry.className = "log-entry";
-                    entry.innerHTML = `<img src="https://flagcdn.com/w20/${m.data.country.toLowerCase()}.png" width="16"> ${m.data.city}`;
-                    list.appendChild(entry);
+                const activeMembers = members.map(m => {
+                    const div = document.createElement("div");
+                    div.className = "location-item";
+                    div.innerHTML = `<img src="https://flagcdn.com/w40/${m.data.country}.png"> <span>${m.data.city} - ${m.data.country.toUpperCase()}</span>`;
+                    list.appendChild(div);
                     return m.data;
                 });
-                document.getElementById('count').innerText = pts.length.toString().padStart(2, '0');
-                world.htmlElementsData(pts);
+                document.getElementById('count').innerText = activeMembers.length.toString().padStart(2, '0');
+                world.htmlElementsData(activeMembers);
             });
         });
-        
-        // Carrega por IP primeiro (Plano B)
-        try {
-            const res = await fetch('https://speed.cloudflare.com/meta');
-            const d = await res.json();
-            myData = { lat: d.latitude, lng: d.longitude, city: d.city.toUpperCase(), country: d.country };
-            channel.presence.enter(myData);
-            world.pointOfView({ lat: myData.lat, lng: myData.lng, altitude: 2 }, 2000);
-        } catch(e) { channel.presence.enter(myData); }
-    }
 
-    function getPreciseLocation() {
+        // TENTAR GEOLOCALIZAÇÃO REAL (PARA EVITAR O ERRO DE 140KM)
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(async (pos) => {
                 myData.lat = pos.coords.latitude;
                 myData.lng = pos.coords.longitude;
-                
-                // Converte coordenadas em nome de cidade real
-                const rev = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${myData.lat}&lon=${myData.lng}`);
-                const res = await rev.json();
-                myData.city = (res.address.city || res.address.town || "LOCALIZAÇÃO REAL").toUpperCase();
-                
-                channel.presence.update(myData);
-                world.pointOfView({ lat: myData.lat, lng: myData.lng, altitude: 1.5 }, 2000);
+                try {
+                    const rev = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${myData.lat}&lon=${myData.lng}`);
+                    const res = await rev.json();
+                    myData.city = (res.address.city || res.address.town || "BRUGES").toUpperCase();
+                    myData.country = res.address.country_code.toLowerCase();
+                } catch(e) {}
+                channel.presence.enter(myData);
+                world.pointOfView({ lat: myData.lat, lng: myData.lng, altitude: 2 }, 2000);
+            }, () => {
+                // Se falhar o GPS, usa o IP como última opção
+                channel.presence.enter(myData);
             });
+        } else {
+            channel.presence.enter(myData);
         }
     }
 
-    setInterval(() => { document.getElementById('time').innerText = new Date().toLocaleTimeString(); }, 1000);
+    setInterval(() => {
+        document.getElementById('time').textContent = new Date().toLocaleTimeString();
+    }, 1000);
+
+    // Bloqueio de Inspeção
+    document.onkeydown = function(e) {
+        if(e.keyCode == 123 || (e.ctrlKey && e.shiftKey && (e.keyCode == 'I'.charCodeAt(0) || e.keyCode == 'J'.charCodeAt(0)))) return false;
+    }
+
     init();
 </script>
 </body>
