@@ -2,151 +2,172 @@
 <html lang="pt">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RAU RADAR - ELITE PRECISION</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://unpkg.com/globe.gl"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAU RADAR - PRECISÃO TOTAL</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', monospace; }
-        body { background: #000; overflow: hidden; height: 100vh; width: 100vw; display: flex; justify-content: center; align-items: center; }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: #000; 
+            overflow: hidden; 
+            height: 100vh; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center;
+            /* Estrelas Fixas no Fundo (Não se mexem nunca) */
+            background-image: 
+                radial-gradient(1px 1px at 20px 30px, #fff, rgba(0,0,0,0)),
+                radial-gradient(1px 1px at 40px 70px, #fff, rgba(0,0,0,0)),
+                radial-gradient(2px 2px at 50px 160px, #ddd, rgba(0,0,0,0)),
+                radial-gradient(1px 1px at 90px 40px, #fff, rgba(0,0,0,0)),
+                radial-gradient(1px 1px at 130px 80px, #fff, rgba(0,0,0,0)),
+                radial-gradient(2px 2px at 160px 120px, #ddd, rgba(0,0,0,0));
+            background-repeat: repeat;
+            background-size: 200px 200px;
+        }
+
         .main-container {
             width: 100%; max-width: 500px; height: 95vh;
-            background: #000; border: 2px solid #ff0000; border-radius: 20px;
-            box-shadow: 0 0 50px rgba(255, 0, 0, 0.4);
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #ff0000; border-radius: 25px;
+            box-shadow: 0 0 40px rgba(255, 0, 0, 0.6);
             position: relative; display: flex; flex-direction: column; overflow: hidden;
+            z-index: 10;
         }
 
-        .title-overlay {
-            position: absolute; top: 20px; width: 100%; text-align: center;
-            z-index: 10; pointer-events: none;
+        #map { flex-grow: 1; width: 100%; background: #000; }
+
+        .header {
+            position: absolute; top: 0; width: 100%; z-index: 1000;
+            padding: 15px; text-align: center;
+            background: linear-gradient(to bottom, black, transparent);
+            pointer-events: none;
         }
-        .title { color: #ff4444; font-size: 22px; font-weight: bold; letter-spacing: 5px; text-shadow: 0 0 15px #ff0000; }
+        .title { color: #ff0000; font-family: 'Segoe UI', bold; font-size: 24px; letter-spacing: 4px; text-shadow: 0 0 10px #f00; }
+        #status { color: #39ff14; font-size: 10px; margin-top: 5px; font-family: monospace; }
 
-        #globeViz { flex-grow: 1; width: 100%; }
-
-        /* HUD Info */
-        .hud-bottom {
-            position: absolute; bottom: 20px; left: 20px; right: 20px;
-            display: flex; justify-content: space-between; align-items: flex-end;
-            pointer-events: none; z-index: 10;
+        .footer {
+            padding: 15px; display: flex; justify-content: space-between; align-items: center;
+            background: #000; border-top: 1px solid #400; z-index: 1000;
         }
-        .stats { background: rgba(0,0,0,0.85); border: 1px solid #ff0000; padding: 12px; border-radius: 8px; }
-        .vis-pill { color: #ff0000; font-size: 22px; font-weight: bold; }
-        #status-info { color: #39ff14; font-size: 10px; margin-top: 5px; font-weight: bold; }
+        .vis-pill { background: #f00; color: #fff; padding: 8px 18px; border-radius: 20px; font-weight: bold; border: 1px solid #fff; font-family: sans-serif; }
+        #time { color: #fff; font-weight: bold; font-family: monospace; font-size: 18px; }
 
-        .m-tag { 
-            display: flex; align-items: center; gap: 6px; 
-            background: rgba(0,0,0,0.9); padding: 4px 10px; 
-            border: 1px solid #ff0000; border-radius: 4px;
-            color: #fff; font-size: 12px; font-weight: bold;
-            box-shadow: 0 0 15px rgba(255,0,0,0.5);
+        /* Estilo do Marcador de Bruges */
+        .custom-marker {
+            width: 20px; height: 20px; background: #ff0000;
+            border: 2px solid #fff; border-radius: 50%;
+            box-shadow: 0 0 15px #ff0000;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7); }
+            70% { transform: scale(1.2); box-shadow: 0 0 0 15px rgba(255, 0, 0, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); }
         }
     </style>
 </head>
-<body oncontextmenu="return false">
+<body>
 
 <div class="main-container">
-    <div class="title-overlay">
-        <div class="title">RAU RADAR</div>
-        <div id="status-info">INICIALIZANDO SATÉLITES...</div>
+    <div class="header">
+        <div class="title">RADAR ELITE</div>
+        <div id="status">A SINCRONIZAR SATÉLITES...</div>
     </div>
 
-    <div id="globeViz"></div>
+    <div id="map"></div>
 
-    <div class="hud-bottom">
-        <div class="stats">
-            <div class="vis-pill">👥 LIVE: <span id="count">01</span></div>
-            <div id="time" style="color:#fff; font-size: 14px; margin-top:5px;">00:00:00</div>
-        </div>
+    <div class="footer">
+        <div id="time">00:00:00</div>
+        <div class="vis-pill">LIVE: <span id="count">01</span></div>
     </div>
 </div>
 
 <script>
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
-    let myData = { lat: 51.2093, lng: 3.2247, city: "A LOCALIZAR...", country: "be" };
-    let ably, channel;
+    let map, ably, channel;
+    let myData = { lat: 51.2093, lng: 3.2247, city: "BRUGES", country: "be" };
 
-    const world = Globe()(document.getElementById('globeViz'))
-        .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
-        .backgroundColor('rgba(0,0,0,0)')
-        .showAtmosphere(true)
-        .atmosphereColor('#ff0000')
-        .atmosphereAltitude(0.15)
-        .htmlElement(d => {
-            const el = document.createElement('div');
-            el.innerHTML = `
-                <div style="display:flex; flex-direction:column; align-items:center; pointer-events:none;">
-                    <div class="m-tag"><img src="https://flagcdn.com/w20/${d.country.toLowerCase()}.png" width="16"> ${d.city}</div>
-                    <div style="width:12px; height:12px; background:#ff0000; border-radius:50%; box-shadow:0 0 20px #ff0000; border:2px solid #fff; margin-top:5px;"></div>
-                </div>`;
-            return el;
+    // 1. INICIALIZAR MAPA (ESTILO GLOBO DARK)
+    function initMap() {
+        map = L.map('map', {
+            center: [51.2093, 3.2247],
+            zoom: 3,
+            zoomControl: false,
+            attributionControl: false
         });
 
-    world.controls().autoRotate = true;
-    world.controls().autoRotateSpeed = 0.5;
+        // Usamos as tiles "Dark Matter" da CartoDB - Ultra seguras e rápidas
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            maxZoom: 18
+        }).addTo(map);
 
-    // --- ESTRELAS FIXAS QUE BRILHAM SEM SAIR DO LUGAR ---
-    const scene = world.scene();
-    const starGeometry = new THREE.BufferGeometry();
-    const starVertices = [];
-    for (let i = 0; i < 10000; i++) {
-        const x = THREE.MathUtils.randFloatSpread(5000);
-        const y = THREE.MathUtils.randFloatSpread(5000);
-        const z = THREE.MathUtils.randFloatSpread(5000);
-        if (Math.sqrt(x*x + y*y + z*z) > 600) starVertices.push(x, y, z);
+        document.getElementById('status').innerText = "RADAR PRONTO";
     }
-    starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
-    const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.9, transparent: true, opacity: 0.8 });
-    const stars = new THREE.Points(starGeometry, starMaterial);
-    scene.add(stars);
 
-    // Truque para as estrelas nunca se moverem com a câmara
-    world.controls().addEventListener('change', () => {
-        stars.position.copy(world.camera().position);
-    });
-
-    async function init() {
+    // 2. CONEXÃO ABLY
+    function initAbly() {
         ably = new Ably.Realtime({ key: ABLY_KEY, clientId: 'M-' + Math.random().toString(36).substr(2, 5) });
         channel = ably.channels.get('malajes-live');
 
         channel.presence.subscribe(() => {
             channel.presence.get((err, members) => {
-                const activeMembers = members.map(m => m.data);
-                document.getElementById('count').innerText = activeMembers.length.toString().padStart(2, '0');
-                world.htmlElementsData(activeMembers);
+                document.getElementById('count').innerText = members.length.toString().padStart(2, '0');
+                // Limpar marcadores antigos e desenhar novos
+                map.eachLayer((layer) => { if (layer instanceof L.Marker) map.removeLayer(layer); });
+                members.forEach(m => {
+                    const icon = L.divIcon({ className: 'custom-marker' });
+                    L.marker([m.data.lat, m.data.lng], { icon: icon })
+                     .addTo(map)
+                     .bindTooltip(m.data.city, { permanent: true, direction: 'top', className: 'm-label' });
+                });
             });
         });
+    }
 
+    // 3. LOCALIZAÇÃO EM TEMPO REAL (O MAIS PRÓXIMO POSSÍVEL)
+    function getLocation() {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(async (pos) => {
                 myData.lat = pos.coords.latitude;
                 myData.lng = pos.coords.longitude;
+
                 try {
-                    const rev = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${myData.lat}&lon=${myData.lng}`);
-                    const res = await rev.json();
-                    myData.city = (res.address.city || res.address.town || "BRUGES").toUpperCase();
-                    myData.country = res.address.country_code.toLowerCase();
+                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${myData.lat}&lon=${myData.lng}`);
+                    const json = await res.json();
+                    myData.city = (json.address.city || json.address.town || "BRUGES").toUpperCase();
                 } catch(e) {}
-                document.getElementById('status-info').innerText = "SINAL GPS: CONFIRMADO";
+
+                document.getElementById('status').innerText = "GPS ATIVO: " + myData.city;
                 channel.presence.enter(myData);
-                world.pointOfView({ lat: myData.lat, lng: myData.lng, altitude: 2 }, 2000);
-            }, async () => {
-                // FALLBACK IP SE O GPS FOR BLOQUEADO
-                document.getElementById('status-info').innerText = "GPS BLOQUEADO. USANDO REDE IP.";
-                document.getElementById('status-info').style.color = "#ff4444";
-                const res = await fetch('https://ipapi.co/json/');
-                const d = await res.json();
-                myData = { lat: d.latitude, lng: d.longitude, city: d.city.toUpperCase() + " (IP)", country: d.country_code.toLowerCase() };
+                map.flyTo([myData.lat, myData.lng], 12); // Zoom suave para a tua casa
+            }, () => {
+                document.getElementById('status').innerText = "GPS BLOQUEADO. A USAR BRUGES DEFAULT.";
+                document.getElementById('status').style.color = "yellow";
                 channel.presence.enter(myData);
-                world.pointOfView({ lat: myData.lat, lng: myData.lng, altitude: 2 }, 2000);
             }, { enableHighAccuracy: true });
         }
     }
 
     setInterval(() => { document.getElementById('time').innerText = new Date().toLocaleTimeString(); }, 1000);
-    init();
+
+    // Arranca tudo
+    initMap();
+    initAbly();
+    getLocation();
 </script>
+
+<style>
+    /* Estilo das etiquetas das cidades no mapa */
+    .m-label {
+        background: rgba(0,0,0,0.8) !important;
+        border: 1px solid #f00 !important;
+        color: #fff !important;
+        font-weight: bold !important;
+        font-size: 10px !important;
+    }
+</style>
 </body>
 </html>
