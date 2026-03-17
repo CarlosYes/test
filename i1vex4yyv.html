@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RAU RADAR v200 - EURO TRACKER</title>
+    <title>RAU RADAR v200 - STATIC STARS</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -17,7 +17,6 @@
             padding: 10px 15px; color: #fff; z-index: 1000;
             border-radius: 0 2px 2px 0; font-size: 18px; font-weight: bold;
             pointer-events: none; letter-spacing: 1px;
-            box-shadow: 10px 0 20px rgba(0,0,0,0.5);
         }
         .live-label { color: #39ff14; }
 
@@ -26,9 +25,8 @@
             display: flex; align-items: center; gap: 6px; 
             background: rgba(0, 0, 0, 0.9); padding: 4px 8px; 
             border: 1px solid #39ff14; border-radius: 2px; margin-bottom: 5px;
-            box-shadow: 0 0 10px rgba(57, 255, 20, 0.3);
         }
-        .m-flag { width: 18px; height: auto; border: 0.5px solid #555; }
+        .m-flag { width: 18px; height: auto; }
         .m-city { color: #fff; font-size: 10px; font-weight: bold; text-transform: uppercase; }
         
         .dot-active { 
@@ -37,11 +35,10 @@
             animation: pulse 1.5s infinite;
         }
         @keyframes pulse {
-            0% { transform: scale(1); box-shadow: 0 0 10px #39ff14; }
-            50% { transform: scale(1.2); box-shadow: 0 0 20px #39ff14; }
-            100% { transform: scale(1); box-shadow: 0 0 10px #39ff14; }
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
         }
-        .dot-ghost { width: 4px; height: 4px; background: #440000; border-radius: 50%; opacity: 0.5; }
     </style>
 </head>
 <body>
@@ -74,42 +71,34 @@
                 const c = (d.country || '??').toLowerCase();
                 const flag = c !== '??' ? `<img src="https://flagcdn.com/w40/${c}.png" class="m-flag">` : '';
                 el.innerHTML = `<div class="m-tag">${flag}<span class="m-city">${d.city}</span></div><div class="dot-active"></div>`;
-            } else { el.innerHTML = `<div class="dot-ghost"></div>`; }
+            }
             return el;
         });
 
     world.controls().autoRotate = true;
     world.controls().autoRotateSpeed = 0.4;
 
-    // FIRMAMENTO ESTÁTICO
+    // --- CÉU DE ESTRELAS REALMENTE ESTÁTICO ---
     const scene = world.scene();
-    const starsGeometry = new THREE.BufferGeometry();
-    const starsVertices = [];
-    for (let i = 0; i < 8000; i++) {
-        const x = THREE.MathUtils.randFloatSpread(3000);
-        const y = THREE.MathUtils.randFloatSpread(3000);
-        const z = THREE.MathUtils.randFloatSpread(3000);
-        if (Math.sqrt(x*x + y*y + z*z) > 400) starsVertices.push(x, y, z);
-    }
-    starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
     
-    const starsMat = new THREE.PointsMaterial({
-        color: 0xffffff,
-        size: 0.7,
+    // Criamos uma esfera gigante invertida para as estrelas
+    const starGeometry = new THREE.SphereGeometry(900, 64, 64);
+    const starMaterial = new THREE.MeshBasicMaterial({
+        map: new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/night-sky.png'),
+        side: THREE.BackSide, // Renderiza por dentro da esfera
         transparent: true,
-        opacity: 0.8
+        opacity: 0.5
     });
     
-    const starField = new THREE.Points(starsGeometry, starsMat);
-    scene.add(starField);
+    const starSky = new THREE.Mesh(starGeometry, starMaterial);
+    scene.add(starSky);
 
-    function animateStars() {
-        const time = Date.now() * 0.001;
-        const pulse = (Math.sin(time * (Math.PI * 2 / 15)) + 1) / 2;
-        starsMat.opacity = 0.2 + (pulse * 0.8);
-        requestAnimationFrame(animateStars);
-    }
-    animateStars();
+    // Ajuste: Impedir que as estrelas sigam a rotação da câmara
+    world.controls().addEventListener('change', () => {
+        // Isto mantém a esfera de estrelas fixa na posição da câmara, 
+        // mas sem herdar a rotação interna se necessário
+        starSky.position.copy(world.camera().position);
+    });
 
     async function init() {
         try {
@@ -118,7 +107,7 @@
             const geo = {
                 lat: data.latitude, 
                 lng: data.longitude,
-                city: data.city ? data.city.toUpperCase() : "EUROPE",
+                city: data.city ? data.city.toUpperCase() : "MECHELEN",
                 country: data.country ? data.country.toLowerCase() : "be",
                 status: 'active'
             };
@@ -130,18 +119,14 @@
                 channel.presence.enter(geo);
                 channel.presence.subscribe(msg => {
                     if (['enter', 'present', 'update'].includes(msg.action)) archive.set(msg.clientId, {...msg.data, status: 'active'});
-                    else if (msg.action === 'leave') {
-                        const p = archive.get(msg.clientId);
-                        if (p) archive.set(msg.clientId, {...p, status: 'ghost'});
-                    }
                     const nodes = Array.from(archive.values());
-                    document.getElementById('count').innerText = nodes.filter(n => n.status === 'active').length;
-                    world.htmlElementsData(nodes.filter(n => n.lat !== undefined));
+                    document.getElementById('count').innerText = nodes.length;
+                    world.htmlElementsData(nodes);
                 });
             });
             
             world.pointOfView({ lat: geo.lat, lng: geo.lng, altitude: 2 }, 2000);
-        } catch (e) { console.warn("CONNECTION DELAY"); }
+        } catch (e) { console.warn("ERR"); }
     }
 
     window.addEventListener('resize', () => {
