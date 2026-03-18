@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR - PRECISÃO TOTAL</title>
+    <title>RAU RADAR - GEOGRAFIA CORRIGIDA</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -64,19 +64,29 @@
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
+    controls.enablePan = false;
 
     const globeGroup = new THREE.Group();
     scene.add(globeGroup);
 
     const earth = new THREE.Mesh(
         new THREE.SphereGeometry(1, 64, 64),
-        new THREE.MeshPhongMaterial({ map: new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg') })
+        new THREE.MeshPhongMaterial({ 
+            map: new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg') 
+        })
     );
     globeGroup.add(earth);
     scene.add(new THREE.AmbientLight(0xffffff, 1.4));
     
-    // FOCO INICIAL: Arábia Saudita
-    camera.position.set(2.4, 1.0, 2.2); 
+    // CORREÇÃO GEOGRÁFICA: Mira na Arábia Saudita (Lat: 24, Lng: 45)
+    const lat = 24, lng = 45;
+    const phi = (90 - lat) * (Math.PI / 180);
+    const theta = (lng + 180) * (Math.PI / 180);
+    camera.position.set(
+        -3.0 * Math.sin(phi) * Math.cos(theta),
+        3.0 * Math.cos(phi),
+        3.0 * Math.sin(phi) * Math.sin(theta)
+    );
     camera.lookAt(0, 0, 0);
 
     let markers = [];
@@ -85,32 +95,31 @@
     function latLngToVec(lat, lng) {
         const phi = (90 - lat) * (Math.PI / 180);
         const theta = (lng + 180) * (Math.PI / 180);
-        return new THREE.Vector3(-1.01 * Math.sin(phi) * Math.cos(theta), 1.01 * Math.cos(phi), 1.01 * Math.sin(phi) * Math.sin(theta));
+        return new THREE.Vector3(
+            -1.01 * Math.sin(phi) * Math.cos(theta), 
+            1.01 * Math.cos(phi), 
+            1.01 * Math.sin(phi) * Math.sin(theta)
+        );
     }
 
-    // Criar uma etiqueta 3D (Sprite) que funde bolinha, texto e bandeira
-    function createMarkerSprite(city, code) {
+    // Cria o marcador 3D fundido (Bolinha + Texto) para garantir precisão
+    function createMarkerSprite(city) {
         const canvas = document.createElement('canvas');
-        canvas.width = 256;
-        canvas.height = 64;
+        canvas.width = 256; canvas.height = 64;
         const ctx = canvas.getContext('2d');
-
-        // Bolinha verde minúscula
+        
+        // Ponto verde luminoso
         ctx.fillStyle = '#00ff00';
-        ctx.beginPath();
-        ctx.arc(12, 32, 6, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 10; ctx.shadowColor = "#00ff00"; ctx.fill();
-
-        // Texto da Cidade
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = 'white';
-        ctx.font = 'bold 24px Segoe UI';
-        ctx.fillText(city.toUpperCase(), 25, 40);
+        ctx.shadowBlur = 10; ctx.shadowColor = "#00ff00";
+        ctx.beginPath(); ctx.arc(15, 32, 7, 0, Math.PI * 2); ctx.fill();
+        
+        // Texto
+        ctx.shadowBlur = 0; ctx.fillStyle = 'white';
+        ctx.font = 'bold 22px Segoe UI';
+        ctx.fillText(city.toUpperCase(), 30, 40);
 
         const texture = new THREE.CanvasTexture(canvas);
-        const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
-        const sprite = new THREE.Sprite(spriteMat);
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture }));
         sprite.scale.set(0.6, 0.15, 1);
         return sprite;
     }
@@ -128,7 +137,7 @@
             channel.presence.subscribe(() => {
                 channel.presence.get((err, members) => {
                     if (err) return;
-                    document.getElementById('visNum').innerText = members.length < 10 ? "0" + members.length : members.length;
+                    document.getElementById('visNum').innerText = (members.length < 10 ? "0" : "") + members.length;
                     const list = document.getElementById("locationData");
                     list.innerHTML = "";
                     
@@ -137,16 +146,13 @@
 
                     members.forEach(m => {
                         const u = m.data; if (!u) return;
-
-                        // Rodapé
                         const div = document.createElement("div");
                         div.className = "location-item";
                         div.innerHTML = `<img src="https://flagcdn.com/w40/${u.code}.png"> <span>${u.city}</span>`;
                         list.appendChild(div);
 
-                        // Marcador de Precisão no Globo
                         const pos = latLngToVec(u.lat, u.lng);
-                        const marker = createMarkerSprite(u.city, u.code);
+                        const marker = createMarkerSprite(u.city);
                         marker.position.copy(pos);
                         globeGroup.add(marker);
                         markers.push(marker);
@@ -158,7 +164,7 @@
 
     function animate() {
         requestAnimationFrame(animate);
-        globeGroup.rotation.y += 0.0015;
+        globeGroup.rotation.y += 0.0012; // Rotação lenta
         controls.update();
         renderer.render(scene, camera);
     }
