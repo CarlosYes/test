@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR - AUTOMÁTICO TOTAL</title>
+    <title>RAU RADAR - LABEL SYSTEM</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -12,12 +12,10 @@
         body { background: transparent; color: #fff; padding: 5px; display: flex; justify-content: center; }
         
         .container { 
-            width: 440px; 
-            background: rgba(10, 0, 0, 0.98); 
+            width: 440px; background: rgba(10, 0, 0, 0.98); 
             border-radius: 15px; border: 2px solid #ff0000; 
             box-shadow: 0 0 25px rgba(255, 0, 0, 0.6); 
-            overflow: hidden; position: relative;
-            display: flex; flex-direction: column;
+            overflow: hidden; position: relative; display: flex; flex-direction: column;
         }
 
         .title { font-size: 22px; text-align: center; font-weight: bold; color: #ff4444; padding: 12px; text-shadow: 2px 2px #000; letter-spacing: 2px; }
@@ -25,12 +23,12 @@
 
         .header { padding: 12px; background: rgba(120, 0, 0, 0.3); border-bottom: 1px solid rgba(255,0,0,0.4); text-align: center; }
         .info-row { display: flex; justify-content: center; align-items: center; gap: 20px; }
-        #time { font-size: 22px; font-weight: bold; color: #fff; }
-        .vis-pill { background: #ff0000; padding: 4px 15px; border-radius: 20px; font-size: 20px; font-weight: bold; color: #fff; border: 1px solid #fff; min-width: 60px; text-align: center; }
+        #time { font-size: 22px; font-weight: bold; }
+        .vis-pill { background: #ff0000; padding: 4px 15px; border-radius: 20px; font-size: 20px; font-weight: bold; border: 1px solid #fff; min-width: 60px; }
 
         .location-list-wrapper { height: 50px; overflow: hidden; background: #050000; border-top: 1px solid #300; }
         .location-list { display: flex; flex-direction: column; transition: transform 0.8s ease-in-out; }
-        .location-item { height: 50px; padding: 0 15px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 16px; text-transform: uppercase; font-weight: bold; }
+        .location-item { height: 50px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 16px; text-transform: uppercase; font-weight: bold; }
         .location-item img { width: 25px; border-radius: 2px; }
     </style>
 </head>
@@ -78,7 +76,6 @@
     camera.lookAt(0, 0, 0);
 
     let activeMarkers = new Map();
-    let currentIndex = 0;
 
     function latLngToVec(lat, lng) {
         const phi = (90 - lat) * (Math.PI / 180);
@@ -86,25 +83,48 @@
         return new THREE.Vector3(-1.015 * Math.sin(phi) * Math.cos(theta), 1.015 * Math.cos(phi), 1.015 * Math.sin(phi) * Math.sin(theta));
     }
 
-    function createMarker(city, color, dotSize = 0.018) {
+    // Sistema de Etiqueta Profissional (Bandeira + Nome)
+    async function createLabelMarker(city, code, color) {
         const group = new THREE.Group();
+        
+        // Ponto verde/vermelho preciso
         const dot = new THREE.Mesh(
-            new THREE.SphereGeometry(dotSize, 12, 12),
+            new THREE.SphereGeometry(0.012, 12, 12),
             new THREE.MeshBasicMaterial({ color: color })
         );
         group.add(dot);
 
         if (city) {
             const canvas = document.createElement('canvas');
-            canvas.width = 250; canvas.height = 60;
+            canvas.width = 400; canvas.height = 100;
             const ctx = canvas.getContext('2d');
-            ctx.fillStyle = color === 0x00ff00 ? '#00ff00' : '#660000';
-            ctx.font = 'bold 28px Segoe UI';
-            ctx.textAlign = 'center';
-            ctx.fillText(city.toUpperCase(), 125, 40);
-            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
-            sprite.position.set(0, 0.06, 0); 
-            sprite.scale.set(0.4, 0.1, 1);
+
+            // Fundo da etiqueta (estilo da tua imagem)
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.roundRect(0, 20, 380, 60, 10);
+            ctx.fill();
+            ctx.strokeStyle = color === 0x00ff00 ? '#00ff00' : '#660000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Texto da Cidade
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 32px Segoe UI';
+            ctx.fillText(city.toUpperCase(), 80, 62);
+
+            // Carregar Bandeira para o Canvas
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.src = `https://flagcdn.com/w80/${code}.png`;
+            img.onload = () => {
+                ctx.drawImage(img, 15, 30, 50, 40);
+                sprite.material.map.needsUpdate = true;
+            };
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture }));
+            sprite.position.set(0, 0.1, 0); 
+            sprite.scale.set(0.6, 0.15, 1);
             group.add(sprite);
         }
         return group;
@@ -112,7 +132,6 @@
 
     async function initRadar() {
         try {
-            // SILENCIOSO: Localização por IP sem perguntar nada ao utilizador
             const res = await fetch("https://api.bigdatacloud.net/data/reverse-geocode-client");
             const d = await res.json();
             const myData = { id: SESSION_ID, city: d.city || "Visita", code: (d.countryCode || "pt").toLowerCase(), lat: d.latitude, lng: d.longitude };
@@ -121,18 +140,18 @@
             const channel = ably.channels.get('rau-radar-v9');
             channel.presence.enter(myData);
 
-            channel.presence.subscribe((member) => {
-                channel.presence.get((err, members) => {
+            channel.presence.subscribe(async (member) => {
+                channel.presence.get(async (err, members) => {
                     if (err) return;
                     document.getElementById('visNum').innerText = (members.length < 10 ? "0" : "") + members.length;
                     const list = document.getElementById("locationData");
                     list.innerHTML = "";
 
-                    activeMarkers.forEach(m => { if(m.status === 'online') globeGroup.remove(m.obj); });
+                    activeMarkers.forEach((m, key) => { if(m.status === 'online') globeGroup.remove(m.obj); });
                     activeMarkers.clear();
 
-                    members.forEach(m => {
-                        const u = m.data; if (!u || !u.lat) return;
+                    for (const m of members) {
+                        const u = m.data; if (!u || !u.lat) continue;
                         
                         const div = document.createElement("div");
                         div.className = "location-item";
@@ -140,18 +159,18 @@
                         list.appendChild(div);
 
                         const pos = latLngToVec(u.lat, u.lng);
-                        const mkr = createMarker(u.city, 0x00ff00);
+                        const mkr = await createLabelMarker(u.city, u.code, 0x00ff00);
                         mkr.position.copy(pos);
                         globeGroup.add(mkr);
                         activeMarkers.set(m.clientId, {obj: mkr, status: 'online'});
-                    });
+                    }
                 });
 
                 if (member.action === 'leave') {
                     const u = member.data;
                     if (u && u.lat) {
                         const pos = latLngToVec(u.lat, u.lng);
-                        const histMkr = createMarker(null, 0x660000, 0.012); 
+                        const histMkr = await createLabelMarker(null, u.code, 0x660000); 
                         histMkr.position.copy(pos);
                         globeGroup.add(histMkr);
                     }
@@ -170,14 +189,11 @@
     setInterval(() => {
         const track = document.getElementById('locationData');
         if (track.children.length > 1) {
-            currentIndex = (currentIndex + 1) % track.children.length;
-            track.style.transform = `translateY(-${currentIndex * 50}px)`;
+            track.style.transform = `translateY(-${(Math.floor(Date.now()/5000) % track.children.length) * 50}px)`;
         }
-    }, 5000);
-
-    setInterval(() => {
-        document.getElementById('time').textContent = new Date().toLocaleTimeString('pt-PT');
     }, 1000);
+
+    setInterval(() => { document.getElementById('time').textContent = new Date().toLocaleTimeString('pt-PT'); }, 1000);
 
     initRadar();
     animate();
