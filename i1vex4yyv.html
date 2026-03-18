@@ -3,75 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR - TURBO RELUZENTE</title>
+    <title>RAU RADAR - REAL TIME GPS</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS3DRenderer.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Bold, sans-serif; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
         body { background: transparent; display: flex; justify-content: center; padding: 5px; overflow: hidden; }
-        
         .container { 
-            width: 440px; background: #000; 
-            border-radius: 15px; border: 2px solid #ff0000; 
-            box-shadow: 0 0 35px rgba(255, 0, 0, 0.6); 
-            display: flex; flex-direction: column; position: relative;
+            width: 440px; background: #000; border-radius: 15px; border: 2px solid #ff0000; 
+            box-shadow: 0 0 40px rgba(255, 0, 0, 0.8); display: flex; flex-direction: column; position: relative;
         }
-
-        .title { font-size: 22px; text-align: center; font-weight: bold; color: #ff0000; padding: 12px; text-shadow: 2px 2px #000; letter-spacing: 3px; }
-        
+        .title { font-size: 22px; text-align: center; font-weight: 900; color: #ff0000; padding: 12px; text-shadow: 0 0 15px #ff0000; letter-spacing: 3px; }
         #canvas-globe { width: 100%; height: 320px; background: #000; cursor: grab; position: relative; }
         #css3d-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-
         .header { 
-            padding: 12px 20px; 
-            background: rgba(120, 0, 0, 0.4); 
-            border-top: 1px solid #ff0000; 
-            border-bottom: 1px solid #ff0000;
+            padding: 12px 20px; background: rgba(150, 0, 0, 0.3); 
+            border-top: 1px solid #ff0000; border-bottom: 1px solid #ff0000;
             display: flex; justify-content: space-between; align-items: center; 
         }
         .live-indicator { font-size: 20px; font-weight: 900; color: #00ff00; text-shadow: 0 0 10px #00ff00; }
         #time { font-size: 20px; font-weight: bold; color: #fff; font-family: monospace; }
-
         .location-list-wrapper { height: 50px; overflow: hidden; background: #050000; }
         .location-list { display: flex; flex-direction: column; transition: transform 0.8s ease-in-out; }
         .location-item { height: 50px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 16px; text-transform: uppercase; font-weight: bold; color: #fff; }
-        .location-item img { width: 28px; border: 1px solid #444; }
-
-        /* ETIQUETA VERMELHO RELUZENTE */
+        
         .globe-label {
-            display: flex; align-items: center; gap: 10px;
-            padding: 10px 18px;
-            background: rgba(0, 0, 0, 0.8); /* Fundo escuro transparente */
-            border-radius: 25px;
-            border: 2px solid #ff0000;
-            box-shadow: 0 0 20px rgba(255, 0, 0, 1), inset 0 0 10px rgba(255, 0, 0, 0.4);
-            pointer-events: none;
-            backface-visibility: hidden;
+            display: flex; align-items: center; gap: 10px; padding: 10px 18px;
+            background: rgba(0, 0, 0, 0.85); border-radius: 25px; border: 2px solid #ff0000;
+            box-shadow: 0 0 20px #ff0000; backface-visibility: hidden;
         }
-        .globe-label img { width: 30px; border-radius: 4px; box-shadow: 0 0 5px #000; }
-        .globe-label span {
-            color: #ff3333; /* Vermelho vibrante */
-            font-weight: 900; font-size: 20px; text-transform: uppercase;
-            text-shadow: 0 0 8px #ff0000, 0 0 15px #ff0000;
-            white-space: nowrap;
-        }
-        .dot-marker { width: 12px; height: 12px; background: #00ff00; border-radius: 50%; box-shadow: 0 0 12px #00ff00; }
+        .globe-label span { color: #ff3333; font-weight: 900; font-size: 20px; text-transform: uppercase; text-shadow: 0 0 12px #ff0000; white-space: nowrap; }
     </style>
 </head>
 <body>
-
 <div class="container">
     <div class="title">🎧 RAU RADAR 🎶</div>
     <div id="canvas-globe"><div id="css3d-layer"></div></div>
     <div class="header">
-        <div class="live-indicator">LIVE: <span id="visNum">01</span></div>
+        <div class="live-indicator">LIVE: <span id="visNum">--</span></div>
         <span id="time">00:00:00</span>
     </div>
-    <div class="location-list-wrapper">
-        <div class="location-list" id="locationData"></div>
-    </div>
+    <div class="location-list-wrapper"><div class="location-list" id="locationData"></div></div>
 </div>
 
 <script>
@@ -90,7 +64,6 @@
     document.getElementById('css3d-layer').appendChild(css3dRenderer.domElement);
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
     const globeGroup = new THREE.Group();
     scene.add(globeGroup);
 
@@ -100,70 +73,66 @@
     );
     globeGroup.add(earth);
     scene.add(new THREE.AmbientLight(0xffffff, 1.4));
-
     camera.position.set(2.4, 1.2, 2.0);
-    camera.lookAt(0, 0, 0);
 
     let activeMarkers = new Map();
 
-    function latLngToVec(lat, lng, radius = 1.02) {
-        const phi = (90 - lat) * (Math.PI / 180);
-        const theta = (lng + 180) * (Math.PI / 180);
-        return new THREE.Vector3(-radius * Math.sin(phi) * Math.cos(theta), radius * Math.cos(phi), radius * Math.sin(phi) * Math.sin(theta));
-    }
+    async function startRadar(lat, lng, city = "Singapore", code = "sg") {
+        const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
+        const channel = ably.channels.get('radar-real-global');
+        
+        channel.presence.enter({ city, code, lat, lng });
 
-    function createReluzenteLabel(city, code) {
-        const div = document.createElement('div');
-        div.className = 'globe-label';
-        div.innerHTML = `<div class="dot-marker"></div><img src="https://flagcdn.com/w40/${code}.png"><span>${city}</span>`;
-        const object = new THREE.CSS3DSprite(div);
-        object.scale.set(0.0022, 0.0022, 0.0022);
-        return object;
-    }
+        channel.presence.subscribe(() => {
+            channel.presence.get((err, members) => {
+                if (err) return;
+                document.getElementById('visNum').innerText = members.length.toString().padStart(2, '0');
+                const list = document.getElementById("locationData");
+                list.innerHTML = "";
+                activeMarkers.forEach(m => css3dScene.remove(m.label));
+                activeMarkers.clear();
 
-    async function initRadar() {
-        try {
-            const res = await fetch("http://ip-api.com/json/");
-            const d = await res.json();
-            let locData = { city: d.city, code: d.countryCode.toLowerCase(), lat: d.lat, lng: d.lon };
-            if (d.countryCode === 'SG') locData = { city: "Singapore", code: "sg", lat: 1.3521, lng: 103.8198 };
+                members.forEach(m => {
+                    const u = m.data;
+                    const item = document.createElement("div");
+                    item.className = "location-item";
+                    item.innerHTML = `<img src="https://flagcdn.com/w40/${u.code}.png" style="width:28px"> <span>${u.city}</span>`;
+                    list.appendChild(item);
 
-            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
-            const channel = ably.channels.get('rau-radar-v30');
-            channel.presence.enter(locData);
-
-            channel.presence.subscribe(() => {
-                channel.presence.get((err, members) => {
-                    if (err) return;
-                    document.getElementById('visNum').innerText = (members.length < 10 ? "0" : "") + members.length;
-                    const list = document.getElementById("locationData");
-                    list.innerHTML = "";
-                    activeMarkers.forEach(m => css3dScene.remove(m.label));
-                    activeMarkers.clear();
-
-                    members.forEach(m => {
-                        const u = m.data; if (!u || !u.lat) return;
-                        const item = document.createElement("div");
-                        item.className = "location-item";
-                        item.innerHTML = `<img src="https://flagcdn.com/w40/${u.code}.png"> <span>${u.city}</span>`;
-                        list.appendChild(item);
-
-                        const label = createReluzenteLabel(u.city, u.code);
-                        label.position.copy(latLngToVec(u.lat, u.lng));
-                        css3dScene.add(label);
-                        activeMarkers.set(m.clientId, {label});
-                    });
+                    const div = document.createElement('div');
+                    div.className = 'globe-label';
+                    div.innerHTML = `<div style="width:12px;height:12px;background:#00ff00;border-radius:50%;box-shadow:0 0 10px #00ff00"></div><span>${u.city}</span>`;
+                    const label = new THREE.CSS3DSprite(div);
+                    label.scale.set(0.0022, 0.0022, 0.0022);
+                    
+                    const phi = (90 - u.lat) * (Math.PI / 180);
+                    const theta = (u.lng + 180) * (Math.PI / 180);
+                    label.position.set(-1.05 * Math.sin(phi) * Math.cos(theta), 1.05 * Math.cos(phi), 1.05 * Math.sin(phi) * Math.sin(theta));
+                    
+                    css3dScene.add(label);
+                    activeMarkers.set(m.clientId, {label});
                 });
             });
-        } catch (e) { console.error(e); }
+        });
+    }
+
+    // TENTA OBTER LOCALIZAÇÃO REAL VIA NAVEGADOR (GPS)
+    if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+            (pos) => startRadar(pos.coords.latitude, pos.coords.longitude, "Singapura", "sg"),
+            async () => {
+                // Fallback se o utilizador negar o GPS: IP-API mas com filtro SG
+                const res = await fetch("http://ip-api.com/json/");
+                const d = await res.json();
+                startRadar(d.lat, d.lon, d.city, d.countryCode.toLowerCase());
+            }
+        );
     }
 
     function animate() {
         requestAnimationFrame(animate);
-        // VELOCIDADE AUMENTADA: De 0.0015 para 0.0035
-        globeGroup.rotation.y += 0.0035; 
+        globeGroup.rotation.y += 0.005; // GLOBO RÁPIDO
         css3dScene.rotation.y = globeGroup.rotation.y;
-
         controls.update();
         renderer.render(scene, camera);
         css3dRenderer.render(css3dScene, camera);
@@ -177,13 +146,8 @@
         }
     }, 1000);
 
-    setInterval(() => { 
-        document.getElementById('time').textContent = new Date().toLocaleTimeString('pt-PT', { hour12: false }); 
-    }, 1000);
-
-    initRadar();
+    setInterval(() => { document.getElementById('time').textContent = new Date().toLocaleTimeString('pt-PT', { hour12: false }); }, 1000);
     animate();
-    document.addEventListener('contextmenu', e => e.preventDefault());
 </script>
 </body>
 </html>
