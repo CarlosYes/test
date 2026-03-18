@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v92 - ABSOLUTE PRECISION</title>
+    <title>RAU RADAR v92 - TICKER EDITION</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -24,52 +24,56 @@
         
         #canvas-container { width: 100%; height: 350px; background: #000; position: relative; cursor: grab; overflow: hidden; }
 
-        /* PONTO EXATO NO GLOBO */
-        .location-tag {
-            position: absolute; pointer-events: none; z-index: 100;
-            display: flex; flex-direction: column; align-items: center;
-            transform: translate(-50%, -50%); /* Centraliza o ponto na coordenada */
+        /* --- TICKER (O GIRO NO FUNDO DO GLOBO) --- */
+        .ticker-wrap {
+            position: absolute; bottom: 0; width: 100%;
+            background: rgba(255, 0, 0, 0.15);
+            border-top: 1px solid rgba(255, 0, 0, 0.5);
+            backdrop-filter: blur(5px); height: 35px;
+            overflow: hidden; white-space: nowrap;
+            display: flex; align-items: center;
         }
 
-        .user-point-mini {
-            width: 6px; height: 6px; background: #00ff00;
-            border-radius: 50%; border: 1px solid #fff;
-            box-shadow: 0 0 8px #00ff00;
-            animation: pulse 1.5s infinite;
+        .ticker-move {
+            display: inline-block;
+            white-space: nowrap;
+            padding-right: 100%;
+            animation: ticker 25s linear infinite;
         }
 
-        @keyframes pulse {
-            0% { transform: scale(1); box-shadow: 0 0 5px #00ff00; }
-            50% { transform: scale(1.3); box-shadow: 0 0 15px #00ff00; }
-            100% { transform: scale(1); box-shadow: 0 0 5px #00ff00; }
+        .ticker-item {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 0 25px; color: #fff; font-size: 12px;
+            font-weight: 900; text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .ticker-item img { width: 20px; border-radius: 2px; }
+
+        @keyframes ticker {
+            0% { transform: translate3d(0, 0, 0); }
+            100% { transform: translate3d(-100%, 0, 0); }
         }
 
-        /* ETIQUETA FLUTUANTE ACIMA DO PONTO */
-        .tag-info {
-            margin-bottom: 8px; /* Espaço para não tapar o ponto */
-            display: flex; align-items: center; gap: 4px;
-            background: rgba(0, 0, 0, 0.7); 
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            padding: 2px 5px; border-radius: 3px;
-            font-size: 9px; font-weight: bold; color: #fff;
-            white-space: nowrap; text-transform: uppercase;
-            backdrop-filter: blur(1px);
-        }
+        /* ETIQUETAS E PONTOS NO GLOBO */
+        .location-tag { position: absolute; pointer-events: none; z-index: 100; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -50%); }
+        .user-point-mini { width: 6px; height: 6px; background: #00ff00; border-radius: 50%; border: 1px solid #fff; box-shadow: 0 0 8px #00ff00; animation: pulse 1.5s infinite; }
+        .tag-info { margin-bottom: 8px; display: flex; align-items: center; gap: 4px; background: rgba(0, 0, 0, 0.8); border: 1px solid rgba(255, 255, 255, 0.3); padding: 2px 5px; border-radius: 3px; font-size: 9px; font-weight: bold; white-space: nowrap; text-transform: uppercase; }
         .tag-info img { width: 12px; }
 
-        /* LISTA E INTERFACE */
-        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
-        .online { background: #00ff00; box-shadow: 0 0 8px #00ff00; }
-        .offline { background: #440000; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }
 
+        /* INTERFACE INFERIOR */
         .header { padding: 12px; background: rgba(150, 0, 0, 0.2); border-top: 1px solid rgba(255,0,0,0.4); text-align: center; }
         .info-row { display: flex; justify-content: center; align-items: center; gap: 20px; }
         #time { font-size: 22px; font-weight: bold; font-family: monospace; }
         .vis-pill { background: #ff0000; padding: 4px 15px; border-radius: 20px; font-size: 20px; font-weight: 900; border: 2px solid #fff; }
 
-        .location-list { max-height: 150px; overflow-y: auto; padding: 10px; background: #050000; border-top: 2px solid #300; }
+        .location-list { max-height: 120px; overflow-y: auto; padding: 10px; background: #050000; border-top: 2px solid #300; }
         .location-item { padding: 8px; background: rgba(255,0,0,0.05); border-left: 4px solid #f00; border-radius: 4px; display: flex; align-items: center; margin-bottom: 6px; font-size: 11px; text-transform: uppercase; font-weight: bold; }
         .location-item img { width: 18px; margin-right: 10px; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        .online { background: #00ff00; box-shadow: 0 0 8px #00ff00; }
+        .offline { background: #440000; }
 
         #date { font-size: 11px; margin-top: 4px; color: #ffaaaa; text-transform: uppercase; }
         .location-list::-webkit-scrollbar { width: 5px; }
@@ -81,7 +85,13 @@
 <div class="container">
     <div class="title">🎧 RAU SYSTEM v92 🎶</div>
     
-    <div id="canvas-container"></div>
+    <div id="canvas-container">
+        <div class="ticker-wrap">
+            <div class="ticker-move" id="tickerContent">
+                <span class="ticker-item">A AGUARDAR LIGAÇÕES...</span>
+            </div>
+        </div>
+    </div>
 
     <div class="header">
         <div class="info-row">
@@ -107,7 +117,7 @@
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.minDistance = 1.6; // Permite zoom ligeiramente mais perto
+    controls.minDistance = 1.6;
     controls.maxDistance = 5.0;
 
     const globe = new THREE.Mesh(
@@ -119,7 +129,6 @@
     );
     scene.add(globe);
 
-    // Início Arábia Saudita
     globe.rotation.y = -Math.PI / 1.5; 
     camera.position.set(0, 0.8, 2.8); 
     controls.update();
@@ -151,11 +160,8 @@
                 m.tag.style.display = 'flex';
                 m.tag.style.left = `${(vector.x * 0.5 + 0.5) * container.clientWidth}px`;
                 m.tag.style.top = `${(vector.y * -0.5 + 0.5) * container.clientHeight}px`;
-                
-                // Reduzir etiqueta conforme zoom para manter o ponto visível
                 const dist = camera.position.length();
-                const scale = 2.8 / dist;
-                m.tag.style.transform = `translate(-50%, -50%) scale(${Math.max(0.6, scale)})`;
+                m.tag.style.transform = `translate(-50%, -50%) scale(${Math.max(0.6, 2.8/dist)})`;
             } else {
                 m.tag.style.display = 'none';
             }
@@ -175,8 +181,7 @@
                 city: (d.city || d.locality || "GPS").toUpperCase(),
                 country: d.countryName || "Mundo",
                 code: (d.countryCode || "pt").toLowerCase(),
-                lat: d.latitude,
-                lng: d.longitude
+                lat: d.latitude, lng: d.longitude
             };
 
             const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
@@ -198,7 +203,9 @@
                         markers.forEach(m => m.tag.remove());
                         markers = [];
                         const list = document.getElementById("locationData");
+                        const ticker = document.getElementById("tickerContent");
                         list.innerHTML = "";
+                        ticker.innerHTML = "";
 
                         Array.from(historyUsers.values()).reverse().forEach(u => {
                             // Lista Inferior
@@ -207,21 +214,28 @@
                             item.innerHTML = `<span class="status-dot ${u.online?'online':'offline'}"></span><img src="https://flagcdn.com/w40/${u.code}.png"><span>${u.city} - ${u.country}</span>`;
                             list.appendChild(item);
 
-                            // PONTO E INFO NO GLOBO
                             if(u.online) {
+                                // Ticker (Scroll no fundo do globo)
+                                const tickItem = document.createElement("span");
+                                tickItem.className = "ticker-item";
+                                tickItem.innerHTML = `<img src="https://flagcdn.com/w40/${u.code}.png"> ${u.city}`;
+                                ticker.appendChild(tickItem);
+
+                                // Marcador no Globo
                                 const tag = document.createElement('div');
                                 tag.className = 'location-tag';
-                                tag.innerHTML = `
-                                    <div class="tag-info">
-                                        <img src="https://flagcdn.com/w20/${u.code}.png">
-                                        <span>${u.city}</span>
-                                    </div>
-                                    <div class="user-point-mini"></div>
-                                `;
+                                tag.innerHTML = `<div class="tag-info"><img src="https://flagcdn.com/w20/${u.code}.png"><span>${u.city}</span></div><div class="user-point-mini"></div>`;
                                 container.appendChild(tag);
                                 markers.push({ tag, vector: latLngToVector3(u.lat, u.lng) });
                             }
                         });
+                        
+                        // Duplicar conteúdo do ticker para scroll infinito suave se houver muitos
+                        if(ticker.children.length > 0) {
+                            ticker.innerHTML += ticker.innerHTML;
+                        } else {
+                            ticker.innerHTML = '<span class="ticker-item">RADAR ATIVO</span>';
+                        }
                     });
                 });
             });
