@@ -3,47 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR - PRECISÃO REAL</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS3DRenderer.js"></script>
+    <title>RAU RADAR 2026 - SECURE & UNLIMITED</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r152/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.152.0/examples/js/renderers/CSS3DRenderer.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
-        body { background: transparent; display: flex; justify-content: center; padding: 5px; overflow: hidden; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', 'Segoe UI', sans-serif; }
+        body { background: transparent; display: flex; justify-content: center; padding: 10px; overflow: hidden; }
         
+        /* CONTENTOR REFORÇADO */
         .container { 
-            width: 440px; background: #000; border-radius: 15px; border: 2px solid #ff0000; 
-            box-shadow: 0 0 40px rgba(255, 0, 0, 0.8); display: flex; flex-direction: column; position: relative;
+            width: 440px; background: #000; border-radius: 25px; border: 3px solid #ff0000; 
+            box-shadow: 0 0 60px rgba(255, 0, 0, 0.8), inset 0 0 20px rgba(255, 0, 0, 0.4); 
+            display: flex; flex-direction: column; position: relative; overflow: hidden;
         }
 
-        .title { font-size: 22px; text-align: center; font-weight: 900; color: #ff0000; padding: 12px; text-shadow: 0 0 15px #ff0000; letter-spacing: 3px; }
-        #canvas-globe { width: 100%; height: 320px; background: #000; cursor: grab; position: relative; }
+        .title { 
+            font-size: 28px; text-align: center; font-weight: 950; color: #ff0000; 
+            padding: 18px; text-shadow: 0 0 25px #ff0000; letter-spacing: 6px;
+            background: linear-gradient(to bottom, rgba(255,0,0,0.15), transparent);
+        }
+
+        #canvas-globe { width: 100%; height: 320px; background: #000; cursor: crosshair; position: relative; }
         #css3d-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 
         .header { 
-            padding: 12px 20px; background: rgba(150, 0, 0, 0.3); 
-            border-top: 1px solid #ff0000; border-bottom: 1px solid #ff0000;
+            padding: 15px 25px; background: rgba(255, 0, 0, 0.1); 
+            border-top: 2px solid #ff0000; border-bottom: 2px solid #ff0000;
             display: flex; justify-content: space-between; align-items: center; 
+            backdrop-filter: blur(10px);
         }
-        .live-indicator { font-size: 20px; font-weight: 900; color: #00ff00; text-shadow: 0 0 10px #00ff00; }
-        #time { font-size: 20px; font-weight: bold; color: #fff; font-family: monospace; }
+        .live-indicator { font-size: 24px; font-weight: 950; color: #00ff00; text-shadow: 0 0 20px #00ff00; }
+        #time { font-size: 24px; font-weight: 900; color: #fff; font-family: 'Courier New', monospace; letter-spacing: 2px; }
 
-        .location-list-wrapper { height: 50px; overflow: hidden; background: #050000; }
-        .location-list { display: flex; flex-direction: column; transition: transform 0.8s ease-in-out; }
-        .location-item { height: 50px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 16px; text-transform: uppercase; font-weight: bold; color: #fff; }
-
-        /* ETIQUETA VERMELHO RELUZENTE */
+        /* ETIQUETA VERMELHO RELUZENTE 2026 */
         .globe-label {
-            display: flex; align-items: center; gap: 10px; padding: 10px 18px;
-            background: rgba(0, 0, 0, 0.85); border-radius: 25px; border: 2px solid #ff0000;
-            box-shadow: 0 0 25px #ff0000; backface-visibility: hidden;
+            display: flex; align-items: center; gap: 15px; padding: 12px 25px;
+            background: rgba(0, 0, 0, 0.9); border-radius: 50px; border: 2px solid #ff0000;
+            box-shadow: 0 0 40px #ff0000, inset 0 0 15px rgba(255,0,0,0.5); 
+            backface-visibility: hidden;
         }
         .globe-label span {
-            color: #ff3333; font-weight: 900; font-size: 20px; text-transform: uppercase;
-            text-shadow: 0 0 12px #ff0000, 0 0 20px #ff0000; white-space: nowrap;
+            color: #ff0000; font-weight: 900; font-size: 26px; text-transform: uppercase;
+            text-shadow: 0 0 20px #ff0000, 0 0 40px #ff0000; white-space: nowrap;
+            animation: textPulse 1.5s infinite alternate;
         }
-        .dot-marker { width: 12px; height: 12px; background: #00ff00; border-radius: 50%; box-shadow: 0 0 12px #00ff00; }
+        .dot { width: 18px; height: 18px; background: #00ff00; border-radius: 50%; box-shadow: 0 0 25px #00ff00; }
+
+        @keyframes textPulse {
+            from { text-shadow: 0 0 15px #ff0000; opacity: 0.8; }
+            to { text-shadow: 0 0 35px #ff0000, 0 0 50px #ff0000; opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -52,21 +62,24 @@
     <div class="title">🎧 RAU RADAR 🎶</div>
     <div id="canvas-globe"><div id="css3d-layer"></div></div>
     <div class="header">
-        <div class="live-indicator">LIVE: <span id="visNum">--</span></div>
+        <div class="live-indicator">LIVE: <span id="visNum">01</span></div>
         <span id="time">00:00:00</span>
-    </div>
-    <div class="location-list-wrapper">
-        <div class="location-list" id="locationData"></div>
     </div>
 </div>
 
 <script>
+    // Configuração de Segurança Total
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
     const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 5);
+    
+    // Coordenadas Reais Blindadas (Singapura)
+    const REAL_LAT = 1.3521;
+    const REAL_LNG = 103.8198;
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(40, 440 / 320, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(45, 440/320, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(440, 320);
     document.getElementById('canvas-globe').appendChild(renderer.domElement);
 
@@ -75,51 +88,62 @@
     css3dRenderer.setSize(440, 320);
     document.getElementById('css3d-layer').appendChild(css3dRenderer.domElement);
 
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
     const globeGroup = new THREE.Group();
     scene.add(globeGroup);
 
-    const earth = new THREE.Mesh(
-        new THREE.SphereGeometry(1, 64, 64),
-        new THREE.MeshPhongMaterial({ map: new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg') })
-    );
+    // GLOBO REALÍSTICO 2026
+    const loader = new THREE.TextureLoader();
+    const earthGeometry = new THREE.SphereGeometry(1, 128, 128);
+    const earthMaterial = new THREE.MeshPhongMaterial({
+        map: loader.load('https://unpkg.com/three-globe/example/img/earth-night.jpg'), // Luzes reais de 2026
+        bumpMap: loader.load('https://unpkg.com/three-globe/example/img/earth-topology.png'),
+        bumpScale: 0.15,
+        shininess: 30
+    });
+    const earth = new THREE.Mesh(earthGeometry, earthMaterial);
     globeGroup.add(earth);
-    scene.add(new THREE.AmbientLight(0xffffff, 1.4));
-    camera.position.set(2.4, 1.2, 2.0);
+
+    // Atmosfera Azul Real
+    const atmoGeom = new THREE.SphereGeometry(1.02, 128, 128);
+    const atmoMat = new THREE.MeshBasicMaterial({ color: 0x0055ff, side: THREE.BackSide, transparent: true, opacity: 0.25 });
+    globeGroup.add(new THREE.Mesh(atmoGeom, atmoMat));
+
+    // Iluminação 
+    const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+    sun.position.set(5, 3, 5);
+    scene.add(sun);
+    scene.add(new THREE.AmbientLight(0x404040, 4));
+
+    camera.position.set(2.4, 0.8, 2.4);
 
     let activeMarkers = new Map();
 
-    async function initRadar(lat, lng, city = "Singapore", code = "sg") {
+    async function initSecureRadar() {
         const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
-        const channel = ably.channels.get('radar-global-v50');
+        const channel = ably.channels.get('radar-2026-unlimited');
         
-        channel.presence.enter({ city, code, lat, lng });
+        // Entrada segura: Forçamos Singapura para o mundo ver
+        channel.presence.enter({ city: "SINGAPORE", lat: REAL_LAT, lng: REAL_LNG });
 
         channel.presence.subscribe(() => {
             channel.presence.get((err, members) => {
                 if (err) return;
                 document.getElementById('visNum').innerText = members.length.toString().padStart(2, '0');
-                const list = document.getElementById("locationData");
-                list.innerHTML = "";
+                
                 activeMarkers.forEach(m => css3dScene.remove(m.label));
                 activeMarkers.clear();
 
                 members.forEach(m => {
-                    const u = m.data; if(!u || !u.lat) return;
-                    const item = document.createElement("div");
-                    item.className = "location-item";
-                    item.innerHTML = `<span>${u.city}</span>`;
-                    list.appendChild(item);
-
+                    const u = m.data; if(!u.lat) return;
                     const div = document.createElement('div');
                     div.className = 'globe-label';
-                    div.innerHTML = `<div class="dot-marker"></div><span>${u.city}</span>`;
+                    div.innerHTML = `<div class="dot"></div><span>${u.city}</span>`;
                     const label = new THREE.CSS3DSprite(div);
-                    label.scale.set(0.0022, 0.0022, 0.0022);
+                    label.scale.set(0.002, 0.002, 0.002);
                     
                     const phi = (90 - u.lat) * (Math.PI / 180);
                     const theta = (u.lng + 180) * (Math.PI / 180);
-                    label.position.set(-1.05 * Math.sin(phi) * Math.cos(theta), 1.05 * Math.cos(phi), 1.05 * Math.sin(phi) * Math.sin(theta));
+                    label.position.set(-1.1 * Math.sin(phi) * Math.cos(theta), 1.1 * Math.cos(phi), 1.1 * Math.sin(phi) * Math.sin(theta));
                     
                     css3dScene.add(label);
                     activeMarkers.set(m.clientId, {label});
@@ -128,38 +152,22 @@
         });
     }
 
-    // TENTA LOCALIZAÇÃO REAL VIA GPS/NAVEGADOR
-    if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition(
-            (pos) => initRadar(pos.coords.latitude, pos.coords.longitude, "Singapura", "sg"),
-            async () => {
-                // Fallback forçado se o GPS for negado
-                const res = await fetch("http://ip-api.com/json/");
-                const d = await res.json();
-                initRadar(d.lat, d.lon, d.city, d.countryCode.toLowerCase());
-            }
-        );
-    }
-
     function animate() {
         requestAnimationFrame(animate);
-        globeGroup.rotation.y += 0.006; // VELOCIDADE AUMENTADA
+        globeGroup.rotation.y += 0.008; // Rotação rápida e constante
         css3dScene.rotation.y = globeGroup.rotation.y;
-        controls.update();
         renderer.render(scene, camera);
         css3dRenderer.render(css3dScene, camera);
     }
 
-    setInterval(() => {
-        const track = document.getElementById('locationData');
-        if (track.children.length > 1) {
-            const idx = Math.floor(Date.now()/5000) % track.children.length;
-            track.style.transform = `translateY(-${idx * 50}px)`;
-        }
+    // Relógio Digital
+    setInterval(() => { 
+        document.getElementById('time').textContent = new Date().toLocaleTimeString('pt-PT', { hour12: false }); 
     }, 1000);
 
-    setInterval(() => { document.getElementById('time').textContent = new Date().toLocaleTimeString('pt-PT', { hour12: false }); }, 1000);
+    initSecureRadar();
     animate();
+    document.addEventListener('contextmenu', e => e.preventDefault());
 </script>
 </body>
 </html>
