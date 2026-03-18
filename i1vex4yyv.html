@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v92 - GEO-FIX PRECISION</title>
+    <title>RAU RADAR v92 - SINGLE FOCUS</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -12,74 +12,74 @@
         body { background: #000; color: #fff; padding: 10px; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
         
         .container { 
-            width: 100%; max-width: 440px; 
+            width: 100%; max-width: 420px; 
             background: rgba(10, 0, 0, 0.98); 
             border-radius: 15px; border: 2.5px solid #ff0000; 
-            box-shadow: 0 0 40px rgba(255, 0, 0, 0.7); 
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.5); 
             overflow: hidden; position: relative;
             display: flex; flex-direction: column;
         }
 
-        .title { font-size: 22px; text-align: center; font-weight: bold; color: #ff4444; padding: 12px; text-shadow: 2px 2px #000; letter-spacing: 2px; border-bottom: 2px solid rgba(255,0,0,0.3); }
+        .title { font-size: 20px; text-align: center; font-weight: bold; color: #ff4444; padding: 10px; letter-spacing: 2px; border-bottom: 1.5px solid rgba(255,0,0,0.3); }
         
         #canvas-container { width: 100%; height: 320px; background: #000; position: relative; cursor: grab; }
 
-        .location-tag { 
-            position: absolute; pointer-events: none; z-index: 100; 
-            display: flex; flex-direction: column; align-items: center; 
-            transform: translate(-50%, -50%); 
-        }
-
-        .user-point-mini { 
-            width: 7px; height: 7px; background: #00ff00; 
-            border-radius: 50%; border: 1.5px solid #fff; 
-            box-shadow: 0 0 12px #00ff00; 
-        }
-
-        .tag-info { 
-            margin-bottom: 6px; display: flex; align-items: center; gap: 4px; 
-            background: rgba(0, 0, 0, 0.9); border: 1px solid rgba(0, 255, 0, 0.5); 
-            padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: bold; 
-            white-space: nowrap; color: #00ff00;
-        }
-
-        /* LISTA VERTICAL STEP-FLOW */
+        /* --- JANELA DE FOCO ÚNICO (MOSTRA APENAS 1 CIDADE) --- */
         .location-window {
-            height: 110px; background: #050000; border-top: 2px solid #400;
-            position: relative; overflow: hidden;
-            -webkit-mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
-            mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
+            height: 50px; /* Altura exata para caber apenas UM item com margem */
+            background: rgba(20, 0, 0, 0.6); 
+            border-top: 1px solid #500;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
         .location-scroll-track {
-            display: flex; flex-direction: column; padding: 10px;
-            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            transition: transform 0.8s cubic-bezier(0.65, 0, 0.35, 1);
         }
 
         .location-item { 
-            height: 36px; padding: 6px 12px; background: rgba(255,0,0,0.08); 
-            border-left: 4px solid #f00; border-radius: 4px; 
-            display: flex; align-items: center; margin-bottom: 8px; 
-            font-size: 11px; text-transform: uppercase; font-weight: bold;
+            height: 50px; /* Mesma altura da janela */
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+            gap: 15px;
+            font-size: 13px; 
+            text-transform: uppercase; 
+            font-weight: 900;
+            color: #fff;
             flex-shrink: 0;
+            text-shadow: 0 0 10px rgba(255,255,255,0.3);
         }
 
-        .location-item img { width: 18px; margin-right: 10px; }
+        .location-item img { width: 24px; border: 1px solid rgba(255,255,255,0.2); }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #00ff00; box-shadow: 0 0 8px #00ff00; }
 
-        .header { padding: 10px; background: rgba(150, 0, 0, 0.2); border-top: 1px solid rgba(255,0,0,0.4); text-align: center; }
-        .info-row { display: flex; justify-content: center; align-items: center; gap: 20px; }
-        #time { font-size: 20px; font-weight: bold; font-family: monospace; }
-        .vis-pill { background: #ff0000; padding: 4px 15px; border-radius: 20px; font-size: 18px; font-weight: 900; border: 2px solid #fff; }
-        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 10px; }
-        .online { background: #00ff00; }
-        #date { font-size: 10px; margin-top: 4px; color: #ffaaaa; }
+        /* ETIQUETAS NO GLOBO */
+        .location-tag { position: absolute; pointer-events: none; z-index: 100; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -50%); }
+        .user-point-mini { width: 6px; height: 6px; background: #00ff00; border-radius: 50%; border: 1px solid #fff; box-shadow: 0 0 10px #00ff00; }
+        .tag-info { margin-bottom: 6px; background: rgba(0,0,0,0.9); border: 1px solid #0f0; padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: bold; color: #0f0; white-space: nowrap; }
+
+        /* HEADER INFOS */
+        .header { padding: 10px; background: rgba(150, 0, 0, 0.15); border-top: 1px solid rgba(255,0,0,0.4); text-align: center; }
+        .info-row { display: flex; justify-content: center; align-items: center; gap: 25px; }
+        #time { font-size: 20px; font-weight: bold; font-family: monospace; color: #ffcccc; }
+        .vis-pill { background: #ff0000; padding: 2px 12px; border-radius: 20px; font-size: 16px; font-weight: 900; border: 2px solid #fff; }
+        #date { font-size: 10px; margin-top: 4px; color: #ffaaaa; text-transform: uppercase; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="title">🎧 RAU SYSTEM v92 🎶</div>
+    
     <div id="canvas-container"></div>
+
     <div class="header">
         <div class="info-row">
             <span id="time">00:00:00</span>
@@ -87,9 +87,10 @@
         </div>
         <div id="date"></div>
     </div>
+
     <div class="location-window">
         <div class="location-scroll-track" id="locationData">
-            <div class="location-item">CALIBRANDO GPS...</div>
+            <div class="location-item">A SINCRONIZAR...</div>
         </div>
     </div>
 </div>
@@ -108,7 +109,6 @@
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
 
-    // --- CORREÇÃO DE MAPEAMENTO ---
     const globe = new THREE.Mesh(
         new THREE.SphereGeometry(1, 64, 64),
         new THREE.MeshPhongMaterial({ 
@@ -116,11 +116,10 @@
             shininess: 15 
         })
     );
-    // IMPORTANTE: Alinhamento da malha 3D com a coordenada 0,0
-    globe.rotation.y = -Math.PI / 2; 
+    globe.rotation.y = -Math.PI / 2; // Correção Geográfica
     scene.add(globe);
 
-    camera.position.set(2, 1, 2); 
+    camera.position.set(2, 0.8, 2); 
     controls.update();
 
     scene.add(new THREE.AmbientLight(0xffffff, 1.2));
@@ -132,9 +131,8 @@
     let historyUsers = new Map();
     let scrollIndex = 0;
 
-    // Função de conversão com correção de offset para texturas Three.js padrão
     function latLngToVector3(lat, lng) {
-        const radius = 1.005; // Ligeiramente maior que o globo para não "enterrar" o ponto
+        const radius = 1.005;
         const phi = (90 - lat) * (Math.PI / 180);
         const theta = (lng + 180) * (Math.PI / 180);
         return new THREE.Vector3(
@@ -146,10 +144,9 @@
 
     function animate() {
         requestAnimationFrame(animate);
-        if (!controls.active) globe.rotation.y += 0.001;
+        if (!controls.active) globe.rotation.y += 0.0015;
 
         markers.forEach(m => {
-            // Segue a matriz real do globo (essencial para o ZOOM)
             const worldPos = m.vector.clone().applyMatrix4(globe.matrixWorld);
             const screenPos = worldPos.clone().project(camera);
             const isVisible = worldPos.angleTo(camera.position) < Math.PI / 2.05;
@@ -158,8 +155,6 @@
                 m.tag.style.display = 'flex';
                 m.tag.style.left = `${(screenPos.x * 0.5 + 0.5) * container.clientWidth}px`;
                 m.tag.style.top = `${(screenPos.y * -0.5 + 0.5) * container.clientHeight}px`;
-                
-                // Mantém o tamanho do ponto consistente no zoom
                 const dist = camera.position.distanceTo(worldPos);
                 m.tag.style.transform = `translate(-50%, -50%) scale(${Math.max(0.6, 1.8/dist)})`;
             } else {
@@ -172,13 +167,14 @@
     }
     animate();
 
-    // Scroll vertical de 5 em 5 segundos
+    // LÓGICA DE SALTO DE 5 SEGUNDOS (FOCO ÚNICO)
     setInterval(() => {
         const track = document.getElementById("locationData");
-        if (track.children.length > 2) {
+        const items = track.children;
+        if (items.length > 1) {
             scrollIndex++;
-            if (scrollIndex >= track.children.length) scrollIndex = 0;
-            track.style.transform = `translateY(-${scrollIndex * 44}px)`;
+            if (scrollIndex >= items.length) scrollIndex = 0;
+            track.style.transform = `translateY(-${scrollIndex * 50}px)`; // Salto exato de 50px
         }
     }, 5000);
 
@@ -211,12 +207,14 @@
                         track.innerHTML = "";
 
                         Array.from(historyUsers.values()).reverse().forEach(u => {
-                            const item = document.createElement("div");
-                            item.className = "location-item";
-                            item.innerHTML = `<span class="status-dot ${u.online?'online':''}"></span><img src="https://flagcdn.com/w40/${u.code}.png"><span>${u.city}</span>`;
-                            track.appendChild(item);
-
                             if(u.online) {
+                                // Item na lista inferior
+                                const item = document.createElement("div");
+                                item.className = "location-item";
+                                item.innerHTML = `<span class="status-dot"></span> <img src="https://flagcdn.com/w40/${u.code}.png"> <span>${u.city}</span>`;
+                                track.appendChild(item);
+
+                                // Ponto no Globo
                                 const tag = document.createElement('div');
                                 tag.className = 'location-tag';
                                 tag.innerHTML = `<div class="tag-info">${u.city}</div><div class="user-point-mini"></div>`;
