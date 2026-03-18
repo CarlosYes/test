@@ -3,158 +3,195 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR - EXTREME PRECISION</title>
+    <title>RAU RADAR - FINAL RESTORED</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS3DRenderer.js"></script>
-    <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
-        body { background: transparent; display: flex; justify-content: center; padding: 5px; overflow: hidden; }
+        /* Bloqueio de seleção para segurança */
+        body { 
+            background: transparent; color: #fff; padding: 5px; 
+            display: flex; justify-content: center; 
+            user-select: none; -webkit-user-select: none;
+        }
         
         .container { 
-            width: 440px; background: #000; border-radius: 15px; border: 2px solid #ff0000; 
-            box-shadow: 0 0 30px rgba(255, 0, 0, 0.7); display: flex; flex-direction: column; position: relative;
+            width: 100%; max-width: 440px; 
+            background: rgba(15, 0, 0, 0.98); 
+            border-radius: 15px; border: 2px solid #ff0000; 
+            box-shadow: 0 0 25px rgba(255, 0, 0, 0.6); 
+            overflow: hidden; position: relative;
+            display: flex; flex-direction: column;
         }
 
-        .title { font-size: 22px; text-align: center; font-weight: 900; color: #ff0000; padding: 12px; text-shadow: 0 0 10px #ff0000; letter-spacing: 3px; }
-        #canvas-globe { width: 100%; height: 320px; background: #000; position: relative; }
-        #css3d-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        .title { font-size: 22px; text-align: center; font-weight: bold; color: #ff4444; padding: 12px; text-shadow: 2px 2px #000; letter-spacing: 2px; }
+        
+        /* Canvas sem scroll/zoom */
+        #canvas-globe { width: 100%; height: 320px; background: #000; position: relative; touch-action: none; }
 
-        .header { 
-            padding: 12px 20px; background: rgba(150, 0, 0, 0.2); 
-            border-top: 1px solid #ff0000; border-bottom: 1px solid #ff0000;
-            display: flex; justify-content: space-between; align-items: center; 
-        }
-        .live-indicator { font-size: 20px; font-weight: 900; color: #39ff14; text-shadow: 0 0 10px #39ff14; }
-        #time { font-size: 20px; font-weight: bold; color: #fff; font-family: monospace; }
+        .header { padding: 12px; background: rgba(120, 0, 0, 0.3); border-bottom: 1px solid rgba(255,0,0,0.4); text-align: center; }
+        .info-row { display: flex; justify-content: center; align-items: center; gap: 20px; }
+        #time { font-size: 22px; font-weight: bold; color: #fff; }
+        
+        .vis-pill { background: #ff0000; padding: 4px 15px; border-radius: 20px; font-size: 20px; font-weight: bold; color: #fff; border: 1px solid #fff; min-width: 60px; text-align: center; }
 
-        /* Estilo das etiquetas que pediste no Extreme */
-        .globe-label {
-            display: flex; flex-direction: column; align-items: center;
-            backface-visibility: hidden;
+        .location-list { 
+            max-height: 180px; overflow-y: auto; padding: 10px 10px 40px 10px; 
+            background: #050000; border-top: 1px solid #300; 
         }
-        .label-box {
-            background: #39ff14; color: #000; padding: 4px 10px; border-radius: 2px;
-            font-size: 11px; font-weight: 900; display: flex; align-items: center; gap: 6px;
-            white-space: nowrap; border: 1px solid #fff;
+        
+        .location-item { 
+            padding: 8px; background: rgba(255,0,0,0.1); border-left: 4px solid #f00; 
+            border-radius: 4px; display: flex; align-items: center; gap: 12px; 
+            margin-bottom: 8px; font-size: 13px; text-transform: uppercase; font-weight: bold;
         }
-        .label-box img { width: 20px; height: 13px; object-fit: cover; }
-        .dot-marker { 
-            width: 12px; height: 12px; background: #fff; border-radius: 50%; 
-            margin-top: 5px; border: 2px solid #39ff14; 
-            animation: pulse 0.6s infinite alternate; 
+        .location-item img { width: 25px; border-radius: 2px; }
+
+        /* Tags no globo com bandeira */
+        .location-tag {
+            position: absolute; color: #ffffff; font-size: 11px; font-weight: bold;
+            text-transform: uppercase; pointer-events: none; display: flex;
+            align-items: center; gap: 6px; white-space: nowrap;
+            text-shadow: 2px 2px 4px #000; background: rgba(0,0,0,0.5); padding: 2px 5px; border-radius: 4px;
         }
-        @keyframes pulse { from { transform: scale(1); opacity: 1; } to { transform: scale(2.5); opacity: 0; } }
+        .location-tag img { width: 18px; border-radius: 2px; }
+
+        #date { font-size: 12px; margin-top: 6px; color: #ffaaaa; font-weight: bold; text-transform: uppercase; }
     </style>
 </head>
-<body>
+<body oncontextmenu="return false" onselectstart="return false" ondragstart="return false">
 
-<div class="container">
-    <div class="title">🎧 RAU RADAR v92 🎶</div>
-    <div id="canvas-globe"><div id="css3d-layer"></div></div>
+<div class="container" id="main-wrap">
+    <div class="title">🎧 RAU 🎶</div>
+    <div id="canvas-globe"></div>
     <div class="header">
-        <div class="live-indicator">LIVE: <span id="visNum">00</span></div>
-        <span id="time">00:00:00</span>
+        <div class="info-row">
+            <span id="time">00:00:00</span>
+            <div class="vis-pill">👥 <span id="visNum">00</span></div>
+        </div>
+        <div id="date"></div>
     </div>
+    <div class="location-list" id="locationData"></div>
 </div>
 
 <script>
-    const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
-    
+    const firebaseConfig = {
+        apiKey: "AIzaSyCzyNV0pVuiOAz7n4k8Tyil7u2wxMz42Bc",
+        authDomain: "contador-mio.firebaseapp.com",
+        projectId: "contador-mio",
+        storageBucket: "contador-mio.firebasestorage.app",
+        messagingSenderId: "202029341622",
+        appId: "1:202029341622:web:a26a33e9397f805d92ff17"
+    };
+    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    const db = firebase.firestore();
+    const myId = "M_" + Math.random().toString(36).substr(2, 7);
+
+    // GLOBO CONFIGURADO
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(40, 440 / 320, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(440, 320);
     document.getElementById('canvas-globe').appendChild(renderer.domElement);
 
-    const css3dRenderer = new THREE.CSS3DRenderer();
-    css3dRenderer.setSize(440, 320);
-    document.getElementById('css3d-layer').appendChild(css3dRenderer.domElement);
-
-    const globeGroup = new THREE.Group();
-    scene.add(globeGroup);
-
-    // Globo Original Azul Noite
-    const earth = new THREE.Mesh(
+    const globe = new THREE.Mesh(
         new THREE.SphereGeometry(1, 64, 64),
-        new THREE.MeshPhongMaterial({ 
-            map: new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/earth-night.jpg') 
+        new THREE.MeshPhongMaterial({
+            map: new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
         })
     );
-    globeGroup.add(earth);
-    scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+    scene.add(globe);
+    scene.add(new THREE.AmbientLight(0xffffff, 1.5));
 
-    // FOCO OBRIGATÓRIO: ARÁBIA SAUDITA
-    camera.position.set(1.5, 0.8, 2.2); 
+    // FOCO NA ARÁBIA SAUDITA (Lat 23.8, Lng 45.0)
+    camera.position.set(1.8, 0.8, 2.5); 
     camera.lookAt(0, 0, 0);
 
-    let activeMarkers = new Map();
+    let markers = [];
 
-    async function startExtremeService() {
+    async function connect() {
         try {
-            // MOTOR DE PRECISÃO EXTREMA (O que pediste agora)
-            const response = await fetch('https://api.bigdatacloud.net/data/reverse-geocode-client');
-            const d = await response.json();
+            const res = await fetch("https://ipapi.co/json/");
+            const d = await res.json();
+            const ref = db.collection('activeUsers').doc(myId);
             
-            const geo = {
+            await ref.set({
+                city: (d.city || "Oostende").toUpperCase(),
+                country: d.country_name || "Bélgica",
+                code: (d.country_code || "be").toLowerCase(),
                 lat: d.latitude,
                 lng: d.longitude,
-                city: (d.city || d.locality || "S/N").toUpperCase(),
-                country: (d.countryCode || "PT").toLowerCase()
-            };
-
-            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: 'RAU-' + Math.random().toString(36).substr(2, 5) });
-            const channel = ably.channels.get('rau-extreme-sync');
-            
-            channel.presence.enter(geo);
-
-            channel.presence.subscribe(() => {
-                channel.presence.get((err, members) => {
-                    if (err) return;
-                    document.getElementById('visNum').innerText = members.length.toString().padStart(2, '0');
-                    activeMarkers.forEach(m => scene.remove(m.label));
-                    activeMarkers.clear();
-
-                    members.forEach(m => {
-                        const u = m.data; if(!u || !u.lat) return;
-                        const div = document.createElement('div');
-                        div.className = 'globe-label';
-                        div.innerHTML = `
-                            <div class="label-box">
-                                <img src="https://flagcdn.com/w40/${u.country}.png">
-                                <span>${u.city}</span>
-                            </div>
-                            <div class="dot-marker"></div>`;
-                        
-                        const label = new THREE.CSS3DSprite(div);
-                        label.scale.set(0.0025, 0.0025, 0.0025);
-                        scene.add(label);
-                        activeMarkers.set(m.clientId, {label, lat: u.lat, lng: u.lng});
-                    });
-                });
+                t: Date.now() 
             });
-        } catch (e) { console.log("Erro de rastreio"); }
+
+            window.addEventListener('beforeunload', () => ref.delete());
+            setInterval(() => { ref.update({ t: Date.now() }); }, 10000);
+        } catch(e) { console.error("IP Error"); }
     }
+
+    db.collection('activeUsers').onSnapshot(snap => {
+        let total = 0;
+        const list = document.getElementById("locationData");
+        list.innerHTML = "";
+        markers.forEach(m => { globe.remove(m.dot); if(m.tag) m.tag.remove(); });
+        markers = [];
+
+        snap.forEach(doc => {
+            const u = doc.data();
+            if (Date.now() - u.t < 60000) {
+                total++;
+                const div = document.createElement("div");
+                div.className = "location-item";
+                div.innerHTML = `<img src="https://flagcdn.com/w40/${u.code}.png"> <span>${u.city} - ${u.country}</span>`;
+                list.appendChild(div);
+
+                if(u.lat && u.lng) {
+                    const phi = (90 - u.lat) * (Math.PI / 180);
+                    const theta = (u.lng + 180) * (Math.PI / 180);
+                    const pos = new THREE.Vector3(-1.03 * Math.sin(phi) * Math.cos(theta), 1.03 * Math.cos(phi), 1.03 * Math.sin(phi) * Math.sin(theta));
+                    
+                    // PONTINHO VERDE (como pediste)
+                    const dot = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.025, 12, 12), 
+                        new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+                    );
+                    dot.position.copy(pos);
+                    globe.add(dot);
+
+                    // TAG COM BANDEIRA
+                    const tag = document.createElement('div');
+                    tag.className = 'location-tag';
+                    tag.innerHTML = `${u.city} <img src="https://flagcdn.com/w20/${u.code}.png">`;
+                    document.getElementById('canvas-globe').appendChild(tag);
+                    markers.push({ dot, tag, pos });
+                }
+            }
+        });
+        document.getElementById('visNum').innerText = total < 10 ? "0" + total : total;
+    });
 
     function animate() {
         requestAnimationFrame(animate);
-        globeGroup.rotation.y += 0.003; 
-        
-        activeMarkers.forEach(m => {
-            const phi = (90 - m.lat) * (Math.PI / 180);
-            const theta = (m.lng + 180) * (Math.PI / 180) + globeGroup.rotation.y;
-            m.label.position.set(-1.08 * Math.sin(phi) * Math.cos(theta), 1.08 * Math.cos(phi), 1.08 * Math.sin(phi) * Math.sin(theta));
+        globe.rotation.y += 0.0025;
+        markers.forEach(m => {
+            const v = m.pos.clone().applyQuaternion(globe.quaternion).project(camera);
+            if(v.z < 1) {
+                m.tag.style.display = 'flex';
+                m.tag.style.left = `${(v.x * 0.5 + 0.5) * 440}px`;
+                m.tag.style.top = `${(v.y * -0.5 + 0.5) * 320}px`;
+            } else { m.tag.style.display = 'none'; }
         });
-
         renderer.render(scene, camera);
-        css3dRenderer.render(scene, camera);
     }
 
-    setInterval(() => { 
-        document.getElementById('time').textContent = new Date().toLocaleTimeString('pt-PT', { hour12: false }); 
+    setInterval(() => {
+        const n = new Date();
+        document.getElementById('time').textContent = n.toLocaleTimeString('pt-PT');
+        document.getElementById('date').textContent = n.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
     }, 1000);
 
-    startExtremeService();
+    connect();
     animate();
 </script>
 </body>
