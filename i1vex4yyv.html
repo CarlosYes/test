@@ -3,49 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR 2026 - RECONSTRUÇÃO TOTAL</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r152/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.152.0/examples/js/renderers/CSS3DRenderer.js"></script>
+    <title>RAU RADAR - DESIGN ORIGINAL</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS3DRenderer.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background: transparent; display: flex; justify-content: center; padding: 10px; overflow: hidden; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+        body { background: transparent; display: flex; justify-content: center; padding: 5px; overflow: hidden; }
         
-        /* CONTENTOR MILITAR - IGUAL EM TODO O LADO */
         .container { 
-            width: 440px; background: #000; border-radius: 20px; border: 3px solid #ff0000; 
-            box-shadow: 0 0 50px #ff0000; display: flex; flex-direction: column; position: relative;
+            width: 440px; background: #000; border-radius: 15px; border: 2px solid #ff0000; 
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.7); display: flex; flex-direction: column; position: relative;
         }
 
-        .title { 
-            font-size: 26px; text-align: center; font-weight: 900; color: #ff0000; 
-            padding: 15px; text-shadow: 0 0 15px #ff0000; letter-spacing: 5px;
-            text-transform: uppercase;
-        }
-
-        #canvas-globe { width: 100%; height: 320px; background: #000; position: relative; }
+        .title { font-size: 22px; text-align: center; font-weight: 900; color: #ff0000; padding: 12px; text-shadow: 0 0 10px #ff0000; letter-spacing: 3px; }
+        #canvas-globe { width: 100%; height: 320px; background: #000; cursor: grab; position: relative; }
         #css3d-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 
         .header { 
-            padding: 15px 20px; background: rgba(255, 0, 0, 0.2); 
-            border-top: 3px solid #ff0000; border-bottom: 3px solid #ff0000;
+            padding: 12px 20px; background: rgba(150, 0, 0, 0.2); 
+            border-top: 1px solid #ff0000; border-bottom: 1px solid #ff0000;
             display: flex; justify-content: space-between; align-items: center; 
         }
+        .live-indicator { font-size: 20px; font-weight: 900; color: #00ff00; text-shadow: 0 0 10px #00ff00; }
+        #time { font-size: 20px; font-weight: bold; color: #fff; font-family: monospace; }
 
-        .live-indicator { font-size: 24px; font-weight: 950; color: #00ff00; text-shadow: 0 0 12px #00ff00; }
-        #time { font-size: 24px; font-weight: 900; color: #fff; font-family: 'Courier New', monospace; }
-
-        /* ETIQUETA VERMELHA RELUZENTE */
+        /* ETIQUETA ORIGINAL VERMELHO RELUZENTE */
         .globe-label {
-            display: flex; align-items: center; gap: 12px; padding: 12px 24px;
-            background: rgba(0, 0, 0, 0.9); border-radius: 40px; border: 2px solid #ff0000;
-            box-shadow: 0 0 35px #ff0000; backface-visibility: hidden;
+            display: flex; align-items: center; gap: 10px; padding: 10px 18px;
+            background: rgba(0, 0, 0, 0.8); border-radius: 25px; border: 2px solid #ff0000;
+            box-shadow: 0 0 20px #ff0000; backface-visibility: hidden;
         }
         .globe-label span {
-            color: #ff0000; font-weight: 900; font-size: 28px; text-transform: uppercase;
-            text-shadow: 0 0 20px #ff0000; white-space: nowrap;
+            color: #ff0000; font-weight: 900; font-size: 22px; text-transform: uppercase;
+            text-shadow: 0 0 12px #ff0000; white-space: nowrap;
         }
-        .dot { width: 16px; height: 16px; background: #00ff00; border-radius: 50%; box-shadow: 0 0 15px #00ff00; }
+        .dot-marker { width: 12px; height: 12px; background: #00ff00; border-radius: 50%; box-shadow: 0 0 10px #00ff00; }
     </style>
 </head>
 <body>
@@ -54,80 +48,70 @@
     <div class="title">🎧 RAU RADAR 🎶</div>
     <div id="canvas-globe"><div id="css3d-layer"></div></div>
     <div class="header">
-        <div class="live-indicator">LIVE: <span id="visNum">--</span></div>
+        <div class="live-indicator">LIVE: <span id="visNum">01</span></div>
         <span id="time">00:00:00</span>
     </div>
 </div>
 
 <script>
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
-    const SESSION_ID = 'RAU-FINAL-' + Math.random().toString(36).substr(2, 5);
+    const SESSION_ID = 'RAU-ORIGINAL-' + Math.random().toString(36).substr(2, 5);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, 440/320, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(40, 440 / 320, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(440, 320);
     document.getElementById('canvas-globe').appendChild(renderer.domElement);
 
+    const css3dScene = new THREE.Scene();
     const css3dRenderer = new THREE.CSS3DRenderer();
     css3dRenderer.setSize(440, 320);
     document.getElementById('css3d-layer').appendChild(css3dRenderer.domElement);
 
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
     const globeGroup = new THREE.Group();
     scene.add(globeGroup);
 
-    // GLOBO INDESTRUTÍVEL (SEM TEXTURAS EXTERNAS PARA NÃO FALHAR)
-    const earthGeometry = new THREE.SphereGeometry(1, 64, 64);
-    const earthMaterial = new THREE.MeshPhongMaterial({
-        color: 0x150000, // Vermelho muito escuro
-        emissive: 0x110000,
-        wireframe: false,
-        shininess: 100
-    });
-    const earth = new THREE.Mesh(earthGeometry, earthMaterial);
-    globeGroup.add(earth);
-
-    // Adiciona uma grade sutil para dar o aspeto de radar
-    const grid = new THREE.Mesh(
-        new THREE.SphereGeometry(1.001, 32, 32),
-        new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true, transparent: true, opacity: 0.1 })
+    // MAPA DE SATÉLITE ORIGINAL (O GLOBO REAL)
+    const earth = new THREE.Mesh(
+        new THREE.SphereGeometry(1, 64, 64),
+        new THREE.MeshPhongMaterial({ 
+            map: new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg') 
+        })
     );
-    globeGroup.add(grid);
-
-    scene.add(new THREE.AmbientLight(0xffffff, 1.5));
-    const light = new THREE.PointLight(0xff0000, 2);
-    light.position.set(5, 3, 5);
-    scene.add(light);
-
+    globeGroup.add(earth);
+    scene.add(new THREE.AmbientLight(0xffffff, 1.3));
     camera.position.set(2.4, 0.8, 2.4);
 
     let activeMarkers = new Map();
 
-    async function initService() {
+    async function initRadar() {
         const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
-        const channel = ably.channels.get('radar-global-2026-fixed');
+        const channel = ably.channels.get('radar-original-fixed');
         
-        ably.connection.on('connected', () => {
-            channel.presence.enter({ city: "SINGAPORE", lat: 1.3521, lng: 103.8198 });
-        });
+        channel.presence.enter({ city: "SINGAPORE", lat: 1.3521, lng: 103.8198 });
 
         channel.presence.subscribe(() => {
             channel.presence.get((err, members) => {
                 if (err) return;
                 document.getElementById('visNum').innerText = members.length.toString().padStart(2, '0');
-                
-                activeMarkers.forEach(m => scene.remove(m.label));
+                activeMarkers.forEach(m => css3dScene.remove(m.label));
                 activeMarkers.clear();
 
                 members.forEach(m => {
-                    const u = m.data;
+                    const u = m.data; if(!u.lat) return;
                     const div = document.createElement('div');
                     div.className = 'globe-label';
-                    div.innerHTML = `<div class="dot"></div><span>${u.city}</span>`;
+                    div.innerHTML = `<div class="dot-marker"></div><span>${u.city}</span>`;
                     const label = new THREE.CSS3DSprite(div);
-                    label.scale.set(0.002, 0.002, 0.002);
-                    scene.add(label);
-                    activeMarkers.set(m.clientId, {label, lat: u.lat, lng: u.lng});
+                    label.scale.set(0.0022, 0.0022, 0.0022);
+                    
+                    const phi = (90 - u.lat) * (Math.PI / 180);
+                    const theta = (u.lng + 180) * (Math.PI / 180);
+                    label.position.set(-1.08 * Math.sin(phi) * Math.cos(theta), 1.08 * Math.cos(phi), 1.08 * Math.sin(phi) * Math.sin(theta));
+                    
+                    css3dScene.add(label);
+                    activeMarkers.set(m.clientId, {label});
                 });
             });
         });
@@ -135,23 +119,15 @@
 
     function animate() {
         requestAnimationFrame(animate);
-        globeGroup.rotation.y += 0.008;
-        
-        activeMarkers.forEach(m => {
-            const phi = (90 - m.lat) * (Math.PI / 180);
-            const theta = (m.lng + 180) * (Math.PI / 180) + globeGroup.rotation.y;
-            m.label.position.set(-1.15 * Math.sin(phi) * Math.cos(theta), 1.15 * Math.cos(phi), 1.15 * Math.sin(phi) * Math.sin(theta));
-        });
-
+        globeGroup.rotation.y += 0.005;
+        css3dScene.rotation.y = globeGroup.rotation.y;
+        controls.update();
         renderer.render(scene, camera);
-        css3dRenderer.render(scene, camera);
+        css3dRenderer.render(css3dScene, camera);
     }
 
-    setInterval(() => { 
-        document.getElementById('time').textContent = new Date().toLocaleTimeString('pt-PT', { hour12: false }); 
-    }, 1000);
-
-    initService();
+    setInterval(() => { document.getElementById('time').textContent = new Date().toLocaleTimeString('pt-PT', { hour12: false }); }, 1000);
+    initRadar();
     animate();
 </script>
 </body>
