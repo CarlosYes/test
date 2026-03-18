@@ -3,35 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR - REPLICA DESIGN</title>
+    <title>RAU RADAR v92 - XAT DESIGN</title>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
         body {
-            background-color: #000;
+            background: #000;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
             overflow: hidden;
-            font-family: Arial, sans-serif;
+            font-family: 'Arial Black', sans-serif;
         }
 
-        /* DESIGN DO GLOBO (IGUAL AO LINK XATRADIO) */
-        .globe-container {
+        /* CONTAINER DO GLOBO (DESIGN FIEL AO LINK) */
+        .world-box {
             position: relative;
             width: 300px;
             height: 300px;
             border-radius: 50%;
             background: #000;
             overflow: hidden;
-            box-shadow: 0 0 50px rgba(0, 150, 255, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 50px rgba(0, 150, 255, 0.3);
+            border: 1px solid rgba(0, 150, 255, 0.2);
         }
 
-        /* MAPA DO TEU GITHUB */
-        .globe-map {
+        /* MAPA EM MOVIMENTO */
+        .map-layer {
             position: absolute;
             width: 200%;
             height: 100%;
@@ -42,43 +42,48 @@
             z-index: 1;
         }
 
-        /* MÁSCARA DE LUZ QUE DÁ O EFEITO 3D DO LINK */
-        .globe-overlay {
+        /* EFEITO DE LUZ E PROFUNDIDADE (O QUE DÁ O DESIGN DO LINK) */
+        .light-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
             border-radius: 50%;
-            background: radial-gradient(circle at 30% 30%, 
+            background: radial-gradient(circle at 35% 35%, 
                         rgba(255, 255, 255, 0.15) 0%, 
                         transparent 50%, 
-                        rgba(0, 0, 0, 0.85) 100%);
+                        rgba(0, 0, 0, 0.9) 100%);
             z-index: 2;
             pointer-events: none;
         }
 
-        /* HUD DE DADOS (TEU ESTILO) */
+        /* HUD DE DADOS (USANDO TEU ESTILO DE FONTE E CORES) */
         .hud {
             position: absolute;
             bottom: 40px;
             text-align: center;
-            color: #00b4ff;
+            color: #39ff14; /* Mantive o teu verde Neon no texto */
             z-index: 10;
             pointer-events: none;
         }
 
-        .visitor-count {
+        .count {
             display: block;
-            font-size: 55px;
+            font-size: 80px;
             font-weight: 900;
             color: #fff;
-            line-height: 1;
-            text-shadow: 0 0 20px rgba(0, 180, 255, 0.6);
+            line-height: 0.8;
+            letter-spacing: -5px;
+            text-shadow: 0 0 25px rgba(57, 255, 20, 0.5);
         }
 
-        .status-text {
-            font-size: 10px;
-            letter-spacing: 3px;
+        .status-bar {
+            font-size: 11px;
+            margin-top: 15px;
+            letter-spacing: 2px;
             text-transform: uppercase;
-            margin-top: 5px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 5px 15px;
+            border: 1px solid #39ff14;
+            color: #fff;
         }
 
         @keyframes rotateMap {
@@ -86,29 +91,30 @@
             to { transform: translateX(-50%); }
         }
 
-        /* Camada de Segurança */
-        .secure { position: absolute; width: 100%; height: 100%; z-index: 20; }
+        /* Proteção Anti-Cópia */
+        .secure-shield { position: absolute; width: 100%; height: 100%; z-index: 20; }
     </style>
 </head>
 <body oncontextmenu="return false;">
 
-    <div class="globe-container">
-        <div class="secure"></div>
-        <div class="globe-map"></div>
-        <div class="globe-overlay"></div>
+    <div class="world-box">
+        <div class="secure-shield"></div>
+        <div class="map-layer"></div>
+        <div class="light-overlay"></div>
     </div>
 
     <div class="hud">
-        <span id="count" class="visitor-count">0</span>
-        <div class="status-text" id="status">A RASTREAR...</div>
+        <div style="font-size: 10px; letter-spacing: 5px; color: #39ff14; margin-bottom: 5px;">RAU SYSTEM v92</div>
+        <span id="count" class="count">0</span>
+        <div id="status" class="status-bar">A FORÇAR RASTREIO REAL...</div>
     </div>
 
     <script>
-        // TEUS DADOS EXATOS
+        // CONFIGURAÇÕES TÉCNICAS DO TEU CÓDIGO
         const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
         const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 7);
 
-        // MOTOR DE PRECISÃO EXTREMA (TEU CÓDIGO)
+        // MOTOR DE PRECISÃO EXTREMA (TEU CÓDIGO ORIGINAL)
         async function getExtremeLoc() {
             try {
                 const response = await fetch('https://api.bigdatacloud.net/data/reverse-geocode-client');
@@ -139,6 +145,7 @@
                 const update = () => {
                     channel.presence.get((err, members) => {
                         if (!err) {
+                            // Atualiza o contador gigante na tela
                             document.getElementById('count').innerText = members.length;
                         }
                     });
@@ -151,9 +158,10 @@
 
         getExtremeLoc();
 
-        // Bloqueio de segurança
+        // Bloqueio de teclas de inspeção
         document.onkeydown = (e) => {
             if (e.ctrlKey && (e.key === 'u' || e.key === 'i' || e.key === 'j')) return false;
+            if (e.key === 'F12') return false;
         };
     </script>
 </body>
