@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU SYSTEM v92 - INTERACTIVE</title>
+    <title>RAU SYSTEM v92 - RADAR LIVE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -22,45 +22,40 @@
 
         .title { font-size: 22px; text-align: center; font-weight: bold; color: #ff4444; padding: 12px; text-shadow: 2px 2px #000; letter-spacing: 2px; border-bottom: 2px solid rgba(255,0,0,0.3); }
         
-        #canvas-globe { 
-            width: 100%; height: 320px; 
-            background: #000; 
-            position: relative;
-            cursor: grab;
+        #canvas-container { width: 100%; height: 350px; background: #000; position: relative; cursor: grab; overflow: hidden; }
+        #canvas-container:active { cursor: grabbing; }
+
+        /* ETIQUETAS NO GLOBO */
+        .location-tag {
+            position: absolute;
+            color: #fff;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            white-space: nowrap;
+            text-shadow: 2px 2px 4px #000;
+            background: rgba(255, 0, 0, 0.6);
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid #fff;
+            z-index: 100;
         }
-        #canvas-globe:active { cursor: grabbing; }
+        .location-tag img { width: 14px; border-radius: 1px; }
 
         .header { padding: 12px; background: rgba(150, 0, 0, 0.25); border-top: 1px solid rgba(255,0,0,0.4); text-align: center; }
         .info-row { display: flex; justify-content: center; align-items: center; gap: 20px; }
         #time { font-size: 22px; font-weight: bold; color: #fff; font-family: 'Courier New', monospace; }
-        
-        .vis-pill { background: #ff0000; padding: 5px 18px; border-radius: 20px; font-size: 22px; font-weight: 900; color: #fff; border: 2px solid #fff; min-width: 80px; text-align: center; box-shadow: 0 0 15px #f00; }
+        .vis-pill { background: #ff0000; padding: 5px 18px; border-radius: 20px; font-size: 22px; font-weight: 900; color: #fff; border: 2px solid #fff; min-width: 80px; text-align: center; }
 
-        .location-list { 
-            max-height: 160px; 
-            overflow-y: auto; 
-            padding: 12px; 
-            background: #080000; 
-            border-top: 2px solid #400; 
-        }
-        
-        .location-item { 
-            padding: 10px; 
-            background: rgba(255,0,0,0.12); 
-            border-left: 5px solid #f00; 
-            border-radius: 5px; 
-            display: flex; 
-            align-items: center; 
-            gap: 12px; 
-            margin-bottom: 10px;
-            font-size: 13px;
-            text-transform: uppercase;
-            font-weight: 900;
-        }
-        .location-item img { width: 24px; height: 16px; border-radius: 2px; }
+        .location-list { max-height: 150px; overflow-y: auto; padding: 12px; background: #080000; border-top: 2px solid #400; }
+        .location-item { padding: 8px; background: rgba(255,0,0,0.1); border-left: 4px solid #f00; border-radius: 4px; display: flex; align-items: center; gap: 12px; margin-bottom: 8px; font-size: 12px; text-transform: uppercase; font-weight: bold; }
+        .location-item img { width: 22px; }
 
-        #date { font-size: 11px; margin-top: 6px; color: #ffaaaa; font-weight: bold; text-transform: uppercase; letter-spacing: 1.5px; }
-
+        #date { font-size: 11px; margin-top: 6px; color: #ffaaaa; font-weight: bold; text-transform: uppercase; }
         .location-list::-webkit-scrollbar { width: 6px; }
         .location-list::-webkit-scrollbar-thumb { background: #f00; border-radius: 10px; }
     </style>
@@ -70,7 +65,7 @@
 <div class="container">
     <div class="title">🎧 RAU SYSTEM v92 🎶</div>
     
-    <div id="canvas-globe"></div>
+    <div id="canvas-container"></div>
 
     <div class="header">
         <div class="info-row">
@@ -87,66 +82,77 @@
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
     const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 7);
 
-    // --- SETUP DO GLOBO INTERATIVO ---
-    const container = document.getElementById('canvas-globe');
+    // --- SETUP THREE.JS ---
+    const container = document.getElementById('canvas-container');
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    
     renderer.setSize(container.clientWidth, container.clientHeight);
     container.appendChild(renderer.domElement);
 
-    // Controles de Rato (OrbitControls)
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true; // Suaviza o movimento
-    controls.dampingFactor = 0.05;
-    controls.enableZoom = false; // Bloqueia o zoom para não estragar o layout
-    controls.rotateSpeed = 0.8;
+    controls.enableDamping = true;
+    controls.enableZoom = false;
 
-    // Globo e Textura
-    const textureLoader = new THREE.TextureLoader();
-    const earthMap = textureLoader.load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg');
-
-    const geometry = new THREE.SphereGeometry(1, 64, 64);
-    const material = new THREE.MeshPhongMaterial({ map: earthMap, shininess: 10 });
-    const globe = new THREE.Mesh(geometry, material);
+    const globe = new THREE.Mesh(
+        new THREE.SphereGeometry(1, 64, 64),
+        new THREE.MeshPhongMaterial({ 
+            map: new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg'),
+            shininess: 10 
+        })
+    );
     scene.add(globe);
 
-    // Luzes Potentes
-    scene.add(new THREE.AmbientLight(0xffffff, 1.1));
-    const sunLight = new THREE.DirectionalLight(0xffffff, 0.7);
-    sunLight.position.set(5, 3, 5);
-    scene.add(sunLight);
+    scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.6);
+    sun.position.set(5, 3, 5);
+    scene.add(sun);
+    camera.position.z = 2.8;
 
-    camera.position.z = 2.6;
+    let markers = [];
+
+    // --- CONVERSÃO DE GPS PARA 3D ---
+    function latLngToVector3(lat, lng) {
+        const phi = (90 - lat) * (Math.PI / 180);
+        const theta = (lng + 180) * (Math.PI / 180);
+        return new THREE.Vector3(
+            -Math.sin(phi) * Math.cos(theta),
+            Math.cos(phi),
+            Math.sin(phi) * Math.sin(theta)
+        );
+    }
 
     function animate() {
         requestAnimationFrame(animate);
-        // Se o utilizador não estiver a puxar, ele roda sozinho devagar
-        if (!controls.active) {
-            globe.rotation.y += 0.002;
-        }
-        controls.update(); // Necessário para o Damping funcionar
+        if (!controls.active) globe.rotation.y += 0.002;
+        
+        // Atualizar posição das etiquetas (labels)
+        markers.forEach(m => {
+            const pos = m.vector.clone().applyQuaternion(globe.quaternion);
+            const vector = pos.clone().project(camera);
+            
+            // Só mostrar se estiver na parte da frente do globo
+            if(pos.angleTo(camera.position) < Math.PI/2) {
+                m.tag.style.display = 'flex';
+                m.tag.style.left = `${(vector.x * 0.5 + 0.5) * container.clientWidth}px`;
+                m.tag.style.top = `${(vector.y * -0.5 + 0.5) * container.clientHeight}px`;
+            } else {
+                m.tag.style.display = 'none';
+            }
+        });
+
+        controls.update();
         renderer.render(scene, camera);
     }
     animate();
 
-    // --- LÓGICA DE DADOS ---
-    function updateClock() {
-        const n = new Date();
-        document.getElementById('time').textContent = n.toLocaleTimeString();
-        document.getElementById('date').textContent = n.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
-    }
-    setInterval(updateClock, 1000);
-    updateClock();
-
-    async function startSystem() {
+    // --- LOGICA DE DADOS ---
+    async function initRadar() {
         try {
             const res = await fetch("https://api.bigdatacloud.net/data/reverse-geocode-client");
             const d = await res.json();
-            
-            const geo = {
-                city: (d.city || d.locality || "Desconhecido").toUpperCase(),
+            const myGeo = {
+                city: (d.city || d.locality || "INFO").toUpperCase(),
                 country: d.countryName || "Mundo",
                 code: (d.countryCode || "pt").toLowerCase(),
                 lat: d.latitude,
@@ -157,30 +163,56 @@
             const channel = ably.channels.get('rau-live-radar');
 
             ably.connection.on('connected', () => {
-                channel.presence.enter(geo);
-                channel.presence.subscribe(['enter', 'leave', 'present', 'update'], () => {
+                channel.presence.enter(myGeo);
+                channel.presence.subscribe(() => {
                     channel.presence.get((err, members) => {
-                        if (!err) {
-                            let total = members.length;
-                            document.getElementById('visNum').innerText = total < 10 ? "0" + total : total;
-                            const list = document.getElementById("locationData");
-                            list.innerHTML = "";
-                            members.forEach(member => {
-                                const u = member.data;
-                                if (u && u.city) {
-                                    const div = document.createElement("div");
-                                    div.className = "location-item";
-                                    div.innerHTML = `<img src="https://flagcdn.com/w40/${u.code}.png"> <span>${u.city} - ${u.country}</span>`;
-                                    list.appendChild(div);
-                                }
+                        if (err) return;
+                        
+                        // Atualizar Contador
+                        let total = members.length;
+                        document.getElementById('visNum').innerText = total < 10 ? "0" + total : total;
+
+                        // Limpar Marcadores e Lista
+                        markers.forEach(m => m.tag.remove());
+                        markers = [];
+                        const list = document.getElementById("locationData");
+                        list.innerHTML = "";
+
+                        members.forEach(m => {
+                            const u = m.data;
+                            if(!u || !u.city) return;
+
+                            // Adicionar à lista inferior
+                            const item = document.createElement("div");
+                            item.className = "location-item";
+                            item.innerHTML = `<img src="https://flagcdn.com/w40/${u.code}.png"> <span>${u.city} - ${u.country}</span>`;
+                            list.appendChild(item);
+
+                            // Adicionar Marcador no Globo
+                            const tag = document.createElement('div');
+                            tag.className = 'location-tag';
+                            tag.innerHTML = `<img src="https://flagcdn.com/w20/${u.code}.png"> ${u.city}`;
+                            container.appendChild(tag);
+
+                            markers.push({
+                                tag: tag,
+                                vector: latLngToVector3(u.lat, u.lng)
                             });
-                        }
+                        });
                     });
                 });
             });
-        } catch(e) { console.error(e); }
+        } catch(e) { console.log(e); }
     }
-    startSystem();
+
+    // Relógio
+    setInterval(() => {
+        const n = new Date();
+        document.getElementById('time').textContent = n.toLocaleTimeString();
+        document.getElementById('date').textContent = n.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
+    }, 1000);
+
+    initRadar();
 </script>
 </body>
 </html>
