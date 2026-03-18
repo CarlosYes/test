@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR - DESIGN ORIGINAL DINÂMICO</title>
+    <title>RAU RADAR - SERVIÇO ZERO ALDRABICE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS3DRenderer.js"></script>
@@ -61,7 +61,6 @@
     renderer.setSize(440, 320);
     document.getElementById('canvas-globe').appendChild(renderer.domElement);
 
-    const css3dScene = new THREE.Scene();
     const css3dRenderer = new THREE.CSS3DRenderer();
     css3dRenderer.setSize(440, 320);
     document.getElementById('css3d-layer').appendChild(css3dRenderer.domElement);
@@ -70,7 +69,7 @@
     const globeGroup = new THREE.Group();
     scene.add(globeGroup);
 
-    // DESIGN ORIGINAL EXATO
+    // GLOBO ORIGINAL
     const earth = new THREE.Mesh(
         new THREE.SphereGeometry(1, 64, 64),
         new THREE.MeshPhongMaterial({ 
@@ -85,25 +84,25 @@
 
     async function startRadar() {
         try {
-            // DETEÇÃO REAL: Se ligares a VPN em Singapura, ele mostra SG. Se desligares, mostra a tua cidade real.
-            const response = await fetch('https://ipapi.co/json/');
-            const data = await response.json();
+            // DETEÇÃO AUTOMÁTICA OBRIGATÓRIA (SEM NOMES DE CIDADES NO CÓDIGO)
+            const res = await fetch('https://ipapi.co/json/');
+            const geo = await res.json();
             
-            const currentCity = data.city ? data.city.toUpperCase() : "DESCONHECIDO";
-            const currentLat = data.latitude;
-            const currentLng = data.longitude;
+            // Se a API falhar, o código para aqui e não inventa Singapura.
+            if(!geo.city) return;
 
             const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: 'RAU-' + Math.random().toString(36).substr(2, 5) });
-            const channel = ably.channels.get('radar-v2026-dynamic');
+            const channel = ably.channels.get('radar-final-real-v1');
             
-            channel.presence.enter({ city: currentCity, lat: currentLat, lng: currentLng });
+            // Envia para o servidor EXATAMENTE o que a tua rede diz (VPN ou Real)
+            channel.presence.enter({ city: geo.city.toUpperCase(), lat: geo.latitude, lng: geo.longitude });
 
             channel.presence.subscribe(() => {
                 channel.presence.get((err, members) => {
                     if (err) return;
                     document.getElementById('visNum').innerText = members.length.toString().padStart(2, '0');
                     
-                    activeMarkers.forEach(m => css3dScene.remove(m.label));
+                    activeMarkers.forEach(m => scene.remove(m.label));
                     activeMarkers.clear();
 
                     members.forEach(m => {
@@ -118,23 +117,28 @@
                         const theta = (u.lng + 180) * (Math.PI / 180);
                         label.position.set(-1.08 * Math.sin(phi) * Math.cos(theta), 1.08 * Math.cos(phi), 1.08 * Math.sin(phi) * Math.sin(theta));
                         
-                        css3dScene.add(label);
-                        activeMarkers.set(m.clientId, {label});
+                        scene.add(label);
+                        activeMarkers.set(m.clientId, {label, lat: u.lat, lng: u.lng});
                     });
                 });
             });
         } catch (e) {
-            console.error("Erro no serviço de localização.");
+            document.getElementById('visNum').innerText = "ERRO";
         }
     }
 
     function animate() {
         requestAnimationFrame(animate);
         globeGroup.rotation.y += 0.005;
-        css3dScene.rotation.y = globeGroup.rotation.y;
-        controls.update();
+        
+        activeMarkers.forEach(m => {
+            const phi = (90 - m.lat) * (Math.PI / 180);
+            const theta = (m.lng + 180) * (Math.PI / 180) + globeGroup.rotation.y;
+            m.label.position.set(-1.08 * Math.sin(phi) * Math.cos(theta), 1.08 * Math.cos(phi), 1.08 * Math.sin(phi) * Math.sin(theta));
+        });
+
         renderer.render(scene, camera);
-        css3dRenderer.render(css3dScene, camera);
+        css3dRenderer.render(scene, camera);
     }
 
     setInterval(() => { document.getElementById('time').textContent = new Date().toLocaleTimeString('pt-PT', { hour12: false }); }, 1000);
