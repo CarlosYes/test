@@ -3,28 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR - PRECISÃO MÁXIMA</title>
+    <title>RAU RADAR - AUTOMÁTICO TOTAL</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
-        body { background: transparent; color: #fff; display: flex; justify-content: center; padding: 10px; overflow: hidden; }
+        body { background: transparent; color: #fff; padding: 5px; display: flex; justify-content: center; }
+        
         .container { 
-            width: 440px; background: #0a0000; border-radius: 20px; border: 2px solid #ff0000; 
-            box-shadow: 0 0 30px rgba(255, 0, 0, 0.6); display: flex; flex-direction: column; position: relative;
+            width: 440px; 
+            background: rgba(10, 0, 0, 0.98); 
+            border-radius: 15px; border: 2px solid #ff0000; 
+            box-shadow: 0 0 25px rgba(255, 0, 0, 0.6); 
+            overflow: hidden; position: relative;
+            display: flex; flex-direction: column;
         }
-        .title { font-size: 22px; text-align: center; font-weight: bold; color: #ff4444; padding: 12px; letter-spacing: 2px; }
+
+        .title { font-size: 22px; text-align: center; font-weight: bold; color: #ff4444; padding: 12px; text-shadow: 2px 2px #000; letter-spacing: 2px; }
         #canvas-globe { width: 100%; height: 320px; background: #000; cursor: grab; }
-        .header { padding: 12px; background: rgba(100, 0, 0, 0.2); border-top: 1px solid #400; text-align: center; }
-        .info-row { display: flex; justify-content: center; align-items: center; gap: 15px; }
-        #time { font-size: 24px; font-weight: bold; color: #fff; }
-        .vis-pill { background: #ff0000; padding: 4px 15px; border-radius: 20px; font-size: 20px; font-weight: bold; border: 1px solid #fff; }
-        .location-list-wrapper { height: 50px; overflow: hidden; background: #000; border-top: 1px solid #300; }
+
+        .header { padding: 12px; background: rgba(120, 0, 0, 0.3); border-bottom: 1px solid rgba(255,0,0,0.4); text-align: center; }
+        .info-row { display: flex; justify-content: center; align-items: center; gap: 20px; }
+        #time { font-size: 22px; font-weight: bold; color: #fff; }
+        .vis-pill { background: #ff0000; padding: 4px 15px; border-radius: 20px; font-size: 20px; font-weight: bold; color: #fff; border: 1px solid #fff; min-width: 60px; text-align: center; }
+
+        .location-list-wrapper { height: 50px; overflow: hidden; background: #050000; border-top: 1px solid #300; }
         .location-list { display: flex; flex-direction: column; transition: transform 0.8s ease-in-out; }
-        .location-item { height: 50px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 15px; font-weight: bold; text-transform: uppercase; color: #ffcccc; }
-        .location-item img { width: 24px; border-radius: 2px; }
-        #date { font-size: 12px; color: #a55; margin-top: 5px; text-transform: uppercase; }
+        .location-item { height: 50px; padding: 0 15px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 16px; text-transform: uppercase; font-weight: bold; }
+        .location-item img { width: 25px; border-radius: 2px; }
     </style>
 </head>
 <body>
@@ -37,7 +44,6 @@
             <span id="time">00:00:00</span>
             <div class="vis-pill">👥 <span id="visNum">00</span></div>
         </div>
-        <div id="date"></div>
     </div>
     <div class="location-list-wrapper">
         <div class="location-list" id="locationData"></div>
@@ -62,78 +68,68 @@
 
     const earth = new THREE.Mesh(
         new THREE.SphereGeometry(1, 64, 64),
-        new THREE.MeshPhongMaterial({ 
-            map: new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg') 
-        })
+        new THREE.MeshPhongMaterial({ map: new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg') })
     );
     globeGroup.add(earth);
     scene.add(new THREE.AmbientLight(0xffffff, 1.4));
 
-    // INÍCIO NA ARÁBIA SAUDITA (LAT 24, LON 45)
-    const latS = 24, lonS = 45;
-    const phiS = (90 - latS) * (Math.PI / 180);
-    const thetaS = (lonS + 180) * (Math.PI / 180);
-    camera.position.set(-3.2 * Math.sin(phiS) * Math.cos(thetaS), 3.2 * Math.cos(phiS), 3.2 * Math.sin(phiS) * Math.sin(thetaS));
+    // FOCO ARÁBIA SAUDITA
+    camera.position.set(2.4, 1.2, 2.0); 
     camera.lookAt(0, 0, 0);
 
-    let markers = [];
+    let activeMarkers = new Map();
     let currentIndex = 0;
 
     function latLngToVec(lat, lng) {
         const phi = (90 - lat) * (Math.PI / 180);
         const theta = (lng + 180) * (Math.PI / 180);
-        return new THREE.Vector3(
-            -1.012 * Math.sin(phi) * Math.cos(theta), 
-            1.012 * Math.cos(phi), 
-            1.012 * Math.sin(phi) * Math.sin(theta)
-        );
+        return new THREE.Vector3(-1.015 * Math.sin(phi) * Math.cos(theta), 1.015 * Math.cos(phi), 1.015 * Math.sin(phi) * Math.sin(theta));
     }
 
-    function createMarker(city) {
+    function createMarker(city, color, dotSize = 0.018) {
         const group = new THREE.Group();
         const dot = new THREE.Mesh(
-            new THREE.SphereGeometry(0.012, 12, 12),
-            new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+            new THREE.SphereGeometry(dotSize, 12, 12),
+            new THREE.MeshBasicMaterial({ color: color })
         );
         group.add(dot);
 
-        const canvas = document.createElement('canvas');
-        canvas.width = 300; canvas.height = 60;
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#00ff00'; ctx.font = 'bold 26px Segoe UI';
-        ctx.shadowBlur = 8; ctx.shadowColor = "black";
-        ctx.fillText(city.toUpperCase(), 10, 40);
-
-        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
-        sprite.position.set(0.15, 0.05, 0);
-        sprite.scale.set(0.5, 0.12, 1);
-        group.add(sprite);
+        if (city) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 250; canvas.height = 60;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = color === 0x00ff00 ? '#00ff00' : '#660000';
+            ctx.font = 'bold 28px Segoe UI';
+            ctx.textAlign = 'center';
+            ctx.fillText(city.toUpperCase(), 125, 40);
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
+            sprite.position.set(0, 0.06, 0); 
+            sprite.scale.set(0.4, 0.1, 1);
+            group.add(sprite);
+        }
         return group;
     }
 
     async function initRadar() {
-        let lat, lon, city, code;
-        
         try {
-            // Tentativa de obter dados de alta precisão via Geocoding
+            // SILENCIOSO: Localização por IP sem perguntar nada ao utilizador
             const res = await fetch("https://api.bigdatacloud.net/data/reverse-geocode-client");
             const d = await res.json();
-            lat = d.latitude; lon = d.longitude; 
-            city = d.city || d.locality || "Visita";
-            code = (d.countryCode || "pt").toLowerCase();
+            const myData = { id: SESSION_ID, city: d.city || "Visita", code: (d.countryCode || "pt").toLowerCase(), lat: d.latitude, lng: d.longitude };
 
             const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
             const channel = ably.channels.get('rau-radar-v9');
+            channel.presence.enter(myData);
 
-            channel.presence.enter({ id: SESSION_ID, city, code, lat, lng: lon });
-            channel.presence.subscribe(() => {
+            channel.presence.subscribe((member) => {
                 channel.presence.get((err, members) => {
                     if (err) return;
                     document.getElementById('visNum').innerText = (members.length < 10 ? "0" : "") + members.length;
                     const list = document.getElementById("locationData");
                     list.innerHTML = "";
-                    markers.forEach(m => globeGroup.remove(m));
-                    markers = [];
+
+                    activeMarkers.forEach(m => { if(m.status === 'online') globeGroup.remove(m.obj); });
+                    activeMarkers.clear();
 
                     members.forEach(m => {
                         const u = m.data; if (!u || !u.lat) return;
@@ -144,14 +140,24 @@
                         list.appendChild(div);
 
                         const pos = latLngToVec(u.lat, u.lng);
-                        const mkr = createMarker(u.city);
+                        const mkr = createMarker(u.city, 0x00ff00);
                         mkr.position.copy(pos);
                         globeGroup.add(mkr);
-                        markers.push(mkr);
+                        activeMarkers.set(m.clientId, {obj: mkr, status: 'online'});
                     });
                 });
+
+                if (member.action === 'leave') {
+                    const u = member.data;
+                    if (u && u.lat) {
+                        const pos = latLngToVec(u.lat, u.lng);
+                        const histMkr = createMarker(null, 0x660000, 0.012); 
+                        histMkr.position.copy(pos);
+                        globeGroup.add(histMkr);
+                    }
+                }
             });
-        } catch (e) { console.error("Erro na localização:", e); }
+        } catch (e) { console.error(e); }
     }
 
     function animate() {
@@ -170,9 +176,7 @@
     }, 5000);
 
     setInterval(() => {
-        const n = new Date();
-        document.getElementById('time').textContent = n.toLocaleTimeString('pt-PT');
-        document.getElementById('date').textContent = n.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
+        document.getElementById('time').textContent = new Date().toLocaleTimeString('pt-PT');
     }, 1000);
 
     initRadar();
