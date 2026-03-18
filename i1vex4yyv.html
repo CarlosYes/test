@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU SYSTEM v92 - EXTREME RADAR</title>
+    <title>RAU RADAR v92 - STATUS EDITION</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -11,7 +11,6 @@
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
         body { background: #000; color: #fff; padding: 10px; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
         
-        /* CONTENTOR ESTILO RAU */
         .container { 
             width: 100%; max-width: 440px; 
             background: rgba(10, 0, 0, 0.98); 
@@ -24,15 +23,18 @@
         .title { font-size: 22px; text-align: center; font-weight: bold; color: #ff4444; padding: 12px; text-shadow: 2px 2px #000; letter-spacing: 2px; border-bottom: 2px solid rgba(255,0,0,0.3); }
         
         #canvas-container { width: 100%; height: 350px; background: #000; position: relative; cursor: grab; overflow: hidden; }
-        #canvas-container:active { cursor: grabbing; }
 
-        /* ETIQUETAS DINÂMICAS (CIDADE + BANDEIRA) */
+        /* STATUS DOTS */
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; box-shadow: 0 0 5px currentColor; }
+        .online { background-color: #00ff00; color: #00ff00; }
+        .offline { background-color: #660000; color: #660000; }
+
         .location-tag {
             position: absolute; color: #fff; font-size: 10px; font-weight: bold;
             text-transform: uppercase; pointer-events: none; display: flex;
             align-items: center; gap: 5px; white-space: nowrap;
-            text-shadow: 2px 2px 4px #000; background: rgba(255, 0, 0, 0.8);
-            padding: 3px 8px; border-radius: 4px; border: 1px solid #fff; z-index: 100;
+            text-shadow: 2px 2px 4px #000; background: rgba(20, 0, 0, 0.85);
+            padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.3); z-index: 100;
             transform: translate(-50%, -50%);
         }
         .location-tag img { width: 16px; border-radius: 1px; }
@@ -40,17 +42,13 @@
         .header { padding: 12px; background: rgba(150, 0, 0, 0.25); border-top: 1px solid rgba(255,0,0,0.4); text-align: center; }
         .info-row { display: flex; justify-content: center; align-items: center; gap: 20px; }
         #time { font-size: 22px; font-weight: bold; color: #fff; font-family: 'Courier New', monospace; }
-        
-        /* CONTADOR PILULA 00 */
-        .vis-pill { background: #ff0000; padding: 5px 18px; border-radius: 20px; font-size: 22px; font-weight: 900; color: #fff; border: 2px solid #fff; min-width: 80px; text-align: center; box-shadow: 0 0 10px #f00; }
+        .vis-pill { background: #ff0000; padding: 5px 18px; border-radius: 20px; font-size: 22px; font-weight: 900; color: #fff; border: 2px solid #fff; min-width: 80px; text-align: center; }
 
         .location-list { max-height: 150px; overflow-y: auto; padding: 12px; background: #080000; border-top: 2px solid #400; }
-        .location-item { padding: 8px; background: rgba(255,0,0,0.12); border-left: 5px solid #f00; border-radius: 4px; display: flex; align-items: center; gap: 12px; margin-bottom: 8px; font-size: 12px; text-transform: uppercase; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .location-item img { width: 22px; height: 14px; }
+        .location-item { padding: 8px; background: rgba(255,0,0,0.08); border-left: 5px solid #f00; border-radius: 4px; display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 11px; text-transform: uppercase; font-weight: bold; }
+        .location-item img { width: 20px; height: 13px; }
 
-        #date { font-size: 11px; margin-top: 6px; color: #ffaaaa; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
-        
-        /* SCROLLBAR PERSONALIZADA */
+        #date { font-size: 11px; margin-top: 6px; color: #ffaaaa; font-weight: bold; text-transform: uppercase; }
         .location-list::-webkit-scrollbar { width: 6px; }
         .location-list::-webkit-scrollbar-thumb { background: #f00; border-radius: 10px; }
     </style>
@@ -74,11 +72,10 @@
 </div>
 
 <script>
-    // CHAVE ABLY DO UTILIZADOR
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
     const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 7);
 
-    // --- CONFIGURAÇÃO DO GLOBO (THREE.JS) ---
+    // --- THREE.JS SETUP ---
     const container = document.getElementById('canvas-container');
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
@@ -86,74 +83,52 @@
     renderer.setSize(container.clientWidth, container.clientHeight);
     container.appendChild(renderer.domElement);
 
-    // CONTROLES DE RATO (Orbit + Zoom)
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
     controls.minDistance = 1.8;
     controls.maxDistance = 5.0;
 
-    // GLOBO E TEXTURA (ALTA LUZ)
     const globe = new THREE.Mesh(
         new THREE.SphereGeometry(1, 64, 64),
         new THREE.MeshPhongMaterial({ 
             map: new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg'),
-            shininess: 20
+            shininess: 15
         })
     );
     scene.add(globe);
 
-    // FOCO INICIAL: ARÁBIA SAUDITA
-    // Rodar o globo para o Médio Oriente e inclinar a câmara
+    // Início na Arábia Saudita
     globe.rotation.y = -Math.PI / 1.5; 
     camera.position.set(0, 0.8, 2.8); 
     controls.update();
 
-    // ILUMINAÇÃO POTENTE
     scene.add(new THREE.AmbientLight(0xffffff, 1.3));
     const sun = new THREE.DirectionalLight(0xffffff, 0.6);
     sun.position.set(5, 3, 5);
     scene.add(sun);
 
     let markers = [];
+    let historyUsers = new Map(); // Para guardar quem saiu
 
-    // CONVERSÃO GPS -> VETOR 3D
     function latLngToVector3(lat, lng) {
         const phi = (90 - lat) * (Math.PI / 180);
         const theta = (lng + 180) * (Math.PI / 180);
-        return new THREE.Vector3(
-            -Math.sin(phi) * Math.cos(theta),
-            Math.cos(phi),
-            Math.sin(phi) * Math.sin(theta)
-        );
+        return new THREE.Vector3(-Math.sin(phi) * Math.cos(theta), Math.cos(phi), Math.sin(phi) * Math.sin(theta));
     }
 
-    // CICLO DE ANIMAÇÃO (ROTAÇÃO E INTERAÇÃO)
     function animate() {
         requestAnimationFrame(animate);
+        if (!controls.active) globe.rotation.y += 0.002;
         
-        // O GLOBO GIRA AUTOMATICAMENTE (Se não houver interação)
-        if (!controls.active) {
-            globe.rotation.y += 0.002; 
-        }
-        
-        // ATUALIZAR POSIÇÃO DAS ETIQUETAS
         markers.forEach(m => {
             const pos = m.vector.clone().applyQuaternion(globe.quaternion);
             const vector = pos.clone().project(camera);
-            
-            // Só exibe se a cidade estiver na face visível
             const isVisible = pos.angleTo(camera.position) < Math.PI/2.1;
             
             if(isVisible) {
                 m.tag.style.display = 'flex';
                 m.tag.style.left = `${(vector.x * 0.5 + 0.5) * container.clientWidth}px`;
                 m.tag.style.top = `${(vector.y * -0.5 + 0.5) * container.clientHeight}px`;
-                
-                // Escala da etiqueta conforme o zoom
-                const dist = camera.position.length();
-                const scale = 2.8 / dist;
-                m.tag.style.transform = `translate(-50%, -50%) scale(${Math.max(0.7, scale)})`;
             } else {
                 m.tag.style.display = 'none';
             }
@@ -164,12 +139,12 @@
     }
     animate();
 
-    // --- LÓGICA DE DADOS (ABLY REALTIME) ---
     async function initRadar() {
         try {
             const res = await fetch("https://api.bigdatacloud.net/data/reverse-geocode-client");
             const d = await res.json();
             const myGeo = {
+                id: SESSION_ID,
                 city: (d.city || d.locality || "GPS").toUpperCase(),
                 country: d.countryName || "Mundo",
                 code: (d.countryCode || "pt").toLowerCase(),
@@ -182,44 +157,64 @@
 
             ably.connection.on('connected', () => {
                 channel.presence.enter(myGeo);
+
+                // Escutar atualizações de presença
                 channel.presence.subscribe(() => {
                     channel.presence.get((err, members) => {
                         if (err) return;
-                        
-                        // Atualizar Pilula 00
+
+                        // 1. Atualizar Contador de ONLINE agora
                         document.getElementById('visNum').innerText = members.length < 10 ? "0" + members.length : members.length;
 
-                        // Limpar tudo antes de atualizar
+                        // 2. Atualizar mapa de histórico
+                        // Primeiro, marcamos todos no histórico como OFFLINE (bolinha escura)
+                        historyUsers.forEach(u => u.online = false);
+
+                        // Depois, marcamos os que estão presentes como ONLINE (bolinha verde)
+                        members.forEach(m => {
+                            const u = m.data;
+                            if(u && u.id) {
+                                historyUsers.set(u.id, { ...u, online: true });
+                            }
+                        });
+
+                        // 3. Limpar Tags e Lista Visual
                         markers.forEach(m => m.tag.remove());
                         markers = [];
                         const list = document.getElementById("locationData");
                         list.innerHTML = "";
 
-                        members.forEach(m => {
-                            const u = m.data;
-                            if(!u || !u.city) return;
+                        // 4. Renderizar do mais recente para o mais antigo
+                        const sortedUsers = Array.from(historyUsers.values()).reverse();
 
-                            // Inserir na Lista inferior
+                        sortedUsers.forEach(u => {
+                            const statusClass = u.online ? 'online' : 'offline';
+                            
+                            // Adicionar na lista inferior
                             const item = document.createElement("div");
                             item.className = "location-item";
-                            item.innerHTML = `<img src="https://flagcdn.com/w40/${u.code}.png"> <span>${u.city} - ${u.country}</span>`;
+                            item.innerHTML = `
+                                <span class="status-dot ${statusClass}"></span>
+                                <img src="https://flagcdn.com/w40/${u.code}.png"> 
+                                <span>${u.city} - ${u.country}</span>
+                            `;
                             list.appendChild(item);
 
-                            // Inserir Marcador no Globo
-                            const tag = document.createElement('div');
-                            tag.className = 'location-tag';
-                            tag.innerHTML = `<img src="https://flagcdn.com/w20/${u.code}.png"> ${u.city}`;
-                            container.appendChild(tag);
-
-                            markers.push({ tag, vector: latLngToVector3(u.lat, u.lng) });
+                            // Só colocamos tag no GLOBO se estiver ONLINE
+                            if(u.online) {
+                                const tag = document.createElement('div');
+                                tag.className = 'location-tag';
+                                tag.innerHTML = `<span class="status-dot online"></span><img src="https://flagcdn.com/w20/${u.code}.png"> ${u.city}`;
+                                container.appendChild(tag);
+                                markers.push({ tag, vector: latLngToVector3(u.lat, u.lng) });
+                            }
                         });
                     });
                 });
             });
-        } catch(e) { console.error("Erro radar:", e); }
+        } catch(e) { console.error(e); }
     }
 
-    // RELÓGIO E DATA
     setInterval(() => {
         const n = new Date();
         document.getElementById('time').textContent = n.toLocaleTimeString();
