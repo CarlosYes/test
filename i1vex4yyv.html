@@ -1,236 +1,244 @@
 <!DOCTYPE html>
-<html lang="pt">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR - Pormenor Absoluto</title>
+    <title>RAU</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: sans-serif; }
-        body { background: #000; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+        body { background: transparent; color: #fff; padding: 5px; display: flex; justify-content: center; }
         
         .container { 
-            width: 350px; background: #000; border-radius: 10px; border: 2px solid #f00; 
-            box-shadow: 0 0 20px #f00; overflow: hidden; position: relative;
+            width: 100%; max-width: 440px; 
+            background: rgba(15, 0, 0, 0.98); 
+            border-radius: 15px; border: 2px solid #ff0000; 
+            box-shadow: 0 0 25px rgba(255, 0, 0, 0.6); 
+            overflow: hidden; position: relative;
+            display: flex; flex-direction: column;
         }
 
-        .title { font-size: 18px; text-align: center; font-weight: bold; color: #f00; padding: 10px; border-bottom: 1px solid #f00; }
+        .title { font-size: 22px; text-align: center; font-weight: bold; color: #ff4444; padding: 12px; text-shadow: 2px 2px #000; letter-spacing: 2px; }
         
-        #canvas-container { width: 100%; height: 300px; background: #000; position: relative; }
+        #canvas-globe { width: 100%; height: 320px; background: #000; position: relative; }
 
-        /* Etiquetas fixas ao ponto geográfico */
-        .location-tag { 
-            position: absolute; 
-            pointer-events: none; 
-            z-index: 10; 
-            display: none; /* Inicialmente oculto até o cálculo entrar */
-            flex-direction: column; 
-            align-items: center; 
-            transform: translate(-50%, -50%); 
+        .header { padding: 12px; background: rgba(120, 0, 0, 0.3); border-bottom: 1px solid rgba(255,0,0,0.4); text-align: center; }
+        .info-row { display: flex; justify-content: center; align-items: center; gap: 20px; }
+        #time { font-size: 22px; font-weight: bold; color: #fff; }
+        
+        .vis-pill { background: #ff0000; padding: 4px 15px; border-radius: 20px; font-size: 20px; font-weight: bold; color: #fff; border: 1px solid #fff; min-width: 60px; text-align: center; }
+
+        /* CONTENTOR DE SUBIDA - FIXO */
+        .location-list-wrapper {
+            height: 50px; /* Altura fixa para uma linha */
+            overflow: hidden;
+            background: #050000;
+            border-top: 1px solid #300;
+            position: relative;
         }
-        .point { width: 8px; height: 8px; background: #0f0; border-radius: 50%; box-shadow: 0 0 10px #0f0; }
-        .tag-info { background: rgba(0,0,0,0.8); border: 1px solid #0f0; padding: 2px 5px; border-radius: 3px; font-size: 10px; color: #0f0; margin-bottom: 4px; white-space: nowrap; }
 
-        .footer { padding: 10px; border-top: 1px solid #f00; background: #000; }
-        .info-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        #time { font-size: 16px; font-weight: bold; color: #fff; }
-        .vis-pill { background: #f00; padding: 2px 10px; border-radius: 15px; font-weight: bold; font-size: 14px; }
-
-        .location-display-box { 
-            height: 40px; 
-            overflow: hidden; 
-            position: relative; 
-            background: rgba(255,0,0,0.1);
-            border-radius: 5px;
+        .location-list { 
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.8s cubic-bezier(0.45, 0.05, 0.55, 0.95);
         }
         
-        .scroll-track { 
-            display: flex; 
-            flex-direction: column; 
-            transition: transform 0.8s cubic-bezier(0.45, 0.05, 0.55, 0.95); 
-        }
-
-        .location-unit { 
-            height: 40px; 
+        .location-item { 
+            height: 50px; /* Mesma altura do wrapper */
+            padding: 0 15px; 
+            background: rgba(255,0,0,0.1); 
+            border-left: 4px solid #f00; 
             display: flex; 
             align-items: center; 
-            justify-content: center; 
-            gap: 10px; 
-            font-size: 16px; 
-            font-weight: bold; 
+            gap: 12px; 
+            font-size: 13px;
             text-transform: uppercase;
+            font-weight: bold;
+            flex-shrink: 0;
         }
-        .location-unit img { width: 24px; border-radius: 2px; }
+        .location-item img { width: 25px; border-radius: 2px; }
+
+        .location-tag {
+            position: absolute; color: #ffffff; font-size: 11px; font-weight: bold;
+            text-transform: uppercase; pointer-events: none; display: none;
+            align-items: center; gap: 6px;
+            white-space: nowrap;
+            text-shadow: 2px 2px 4px #000;
+            transform: translate(-50%, -50%);
+            z-index: 20;
+        }
+        .location-tag img { width: 18px; border-radius: 2px; }
+
+        #date { font-size: 12px; margin-top: 6px; color: #ffaaaa; font-weight: bold; text-transform: uppercase; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="title">RAU RADAR</div>
-    <div id="canvas-container"></div>
-    <div class="footer">
+<div class="container" id="main-wrap">
+    <div class="title">🎧 RAU 🎶</div>
+    
+    <div id="canvas-globe"></div>
+
+    <div class="header">
         <div class="info-row">
             <span id="time">00:00:00</span>
-            <div class="vis-pill">V: <span id="visNum">0</span></div>
+            <div class="vis-pill">👥 <span id="visNum">00</span></div>
         </div>
-        
-        <div class="location-display-box">
-            <div class="scroll-track" id="scrollTrack">
-                <div class="location-unit">A AGUARDAR...</div>
-            </div>
-        </div>
+        <div id="date"></div>
+    </div>
+
+    <div class="location-list-wrapper">
+        <div class="location-list" id="locationData"></div>
     </div>
 </div>
 
 <script>
-    const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
-    const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 5);
+    const firebaseConfig = {
+        apiKey: "AIzaSyCzyNV0pVuiOAz7n4k8Tyil7u2wxMz42Bc",
+        authDomain: "contador-mio.firebaseapp.com",
+        projectId: "contador-mio",
+        storageBucket: "contador-mio.firebasestorage.app",
+        messagingSenderId: "202029341622",
+        appId: "1:202029341622:web:a26a33e9397f805d92ff17"
+    };
+    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    const db = firebase.firestore();
+    const myId = "M_" + Math.random().toString(36).substr(2, 7);
 
-    const container = document.getElementById('canvas-container');
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(40, 440 / 320, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    container.appendChild(renderer.domElement);
+    renderer.setSize(440, 320);
+    document.getElementById('canvas-globe').appendChild(renderer.domElement);
 
-    // OrbitControls para permitir rodar o globo sem bugar as etiquetas
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.enablePan = false;
-    controls.minDistance = 2;
-    controls.maxDistance = 5;
-
-    const globe = new THREE.Group();
-    scene.add(globe);
-
-    const earth = new THREE.Mesh(
+    const globe = new THREE.Mesh(
         new THREE.SphereGeometry(1, 64, 64),
-        new THREE.MeshPhongMaterial({ 
+        new THREE.MeshPhongMaterial({
             map: new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
         })
     );
-    globe.add(earth);
-    scene.add(new THREE.AmbientLight(0xffffff, 1.2));
-    camera.position.z = 2.8;
+    scene.add(globe);
+    scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+    camera.position.z = 3.2;
 
     let markers = [];
     let currentIndex = 0;
 
-    // Função precisa de conversão de coordenadas
-    function latLngToVector3(lat, lng) {
-        const phi = (90 - lat) * (Math.PI / 180);
-        const theta = (lng + 180) * (Math.PI / 180);
-        const radius = 1;
-        return new THREE.Vector3(
-            -radius * Math.sin(phi) * Math.cos(theta),
-            radius * Math.cos(phi),
-            radius * Math.sin(phi) * Math.sin(theta)
-        );
+    async function connect() {
+        try {
+            const res = await fetch("https://ipapi.co/json/");
+            const d = await res.json();
+            const ref = db.collection('activeUsers').doc(myId);
+            
+            await ref.set({
+                city: d.city || "Desconocida",
+                country: d.country_name || "Mundo",
+                code: (d.country_code || "es").toLowerCase(),
+                lat: d.latitude,
+                lng: d.longitude,
+                t: Date.now() 
+            });
+
+            window.addEventListener('beforeunload', () => ref.delete());
+            setInterval(() => { ref.update({ t: Date.now() }); }, 10000);
+        } catch(e) { console.error("Error IP"); }
     }
 
-    function updateMarkers() {
-        const widthHalf = container.clientWidth / 2;
-        const heightHalf = container.clientHeight / 2;
+    db.collection('activeUsers').onSnapshot(snap => {
+        let total = snap.size;
+        document.getElementById('visNum').innerText = total < 10 ? "0" + total : total;
+        
+        const list = document.getElementById("locationData");
+        list.innerHTML = "";
+        
+        // Limpar marcadores antigos
+        markers.forEach(m => { globe.remove(m.dot); if(m.tag) m.tag.remove(); });
+        markers = [];
 
-        markers.forEach(m => {
-            // Posição mundial considerando a rotação do globo
-            const vector = m.vector.clone().applyMatrix4(globe.matrixWorld);
-            
-            // Verifica se o ponto está na face visível (frente) do globo
-            const cameraDirection = new THREE.Vector3().subVectors(camera.position, globe.position).normalize();
-            const dotValue = vector.dot(cameraDirection);
+        snap.forEach(doc => {
+            const u = doc.data();
+            if (Date.now() - u.t < 60000) {
+                // Item na lista de subida
+                const div = document.createElement("div");
+                div.className = "location-item";
+                div.innerHTML = `<img src="https://flagcdn.com/w40/${u.code}.png"> <span>${u.city} - ${u.country}</span>`;
+                list.appendChild(div);
 
-            if (dotValue > 0.3) { // Se estiver virado para a câmara
-                vector.project(camera);
-                m.tag.style.display = 'flex';
-                m.tag.style.left = (vector.x * widthHalf + widthHalf) + 'px';
-                m.tag.style.top = (-(vector.y * heightHalf) + heightHalf) + 'px';
-            } else {
-                m.tag.style.display = 'none';
+                if(u.lat && u.lng) {
+                    const phi = (90 - u.lat) * (Math.PI / 180);
+                    const theta = (u.lng + 180) * (Math.PI / 180);
+                    
+                    // Ponto geográfico
+                    const pos = new THREE.Vector3(
+                        -1.01 * Math.sin(phi) * Math.cos(theta), 
+                         1.01 * Math.cos(phi), 
+                         1.01 * Math.sin(phi) * Math.sin(theta)
+                    );
+                    
+                    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.02, 12, 12), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+                    dot.position.copy(pos);
+                    globe.add(dot);
+
+                    const tag = document.createElement('div');
+                    tag.className = 'location-tag';
+                    tag.innerHTML = `${u.city} <img src="https://flagcdn.com/w20/${u.code}.png">`;
+                    document.getElementById('canvas-globe').appendChild(tag);
+                    
+                    markers.push({ dot, tag, pos: pos.clone() });
+                }
             }
         });
-    }
+    });
+
+    // Lógica de subida a cada 5 segundos
+    setInterval(() => {
+        const track = document.getElementById('locationData');
+        const items = track.children.length;
+        if (items > 1) {
+            currentIndex = (currentIndex + 1) % items;
+            track.style.transform = `translateY(-${currentIndex * 50}px)`;
+        }
+    }, 5000);
 
     function animate() {
         requestAnimationFrame(animate);
-        globe.rotation.y += 0.001; // Rotação lenta automática
-        controls.update();
-        updateMarkers();
-        renderer.render(scene, camera);
-    }
-    animate();
+        globe.rotation.y += 0.0025;
+        
+        const widthHalf = 440 / 2;
+        const heightHalf = 320 / 2;
 
-    function startAutoScroll() {
-        setInterval(() => {
-            const track = document.getElementById('scrollTrack');
-            const items = track.children.length;
-            if (items > 1) {
-                currentIndex = (currentIndex + 1) % items;
-                track.style.transform = `translateY(-${currentIndex * 40}px)`;
+        markers.forEach(m => {
+            // Sincronização exata da bolinha com a rotação do globo
+            const vector = m.pos.clone().applyMatrix4(globe.matrixWorld);
+            const cameraDir = new THREE.Vector3().subVectors(camera.position, globe.position).normalize();
+            
+            // Só mostra se estiver na frente do globo
+            if(vector.dot(cameraDir) > 0.3) {
+                vector.project(camera);
+                m.tag.style.display = 'flex';
+                m.tag.style.left = `${(vector.x * widthHalf + widthHalf)}px`;
+                m.tag.style.top = `${(-(vector.y * heightHalf) + heightHalf)}px`;
+            } else { 
+                m.tag.style.display = 'none'; 
             }
-        }, 5000);
-    }
-
-    async function init() {
-        try {
-            const res = await fetch("https://api.bigdatacloud.net/data/reverse-geocode-client");
-            const d = await res.json();
-            const myData = {
-                id: SESSION_ID,
-                city: d.city || "Lisboa",
-                code: (d.countryCode || "pt").toLowerCase(),
-                lat: d.latitude, lng: d.longitude
-            };
-
-            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
-            const channel = ably.channels.get('rau-radar-v9');
-
-            channel.presence.enter(myData);
-            channel.presence.subscribe(() => {
-                channel.presence.get((err, members) => {
-                    if (err) return;
-                    document.getElementById('visNum').innerText = members.length;
-                    
-                    const track = document.getElementById('scrollTrack');
-                    track.innerHTML = ""; 
-                    
-                    markers.forEach(m => m.tag.remove());
-                    markers = [];
-
-                    members.forEach(m => {
-                        const u = m.data;
-                        if (!u) return;
-
-                        // Adiciona à lista de subida no rodapé
-                        const unit = document.createElement('div');
-                        unit.className = 'location-unit';
-                        unit.innerHTML = `<img src="https://flagcdn.com/w40/${u.code}.png"> <span>${u.city}</span>`;
-                        track.appendChild(unit);
-
-                        // Cria a etiqueta 3D
-                        const tag = document.createElement('div');
-                        tag.className = 'location-tag';
-                        tag.innerHTML = `<div class="tag-info">${u.city}</div><div class="point"></div>`;
-                        container.appendChild(tag);
-                        
-                        markers.push({ 
-                            tag, 
-                            vector: latLngToVector3(u.lat, u.lng) 
-                        });
-                    });
-                });
-            });
-        } catch (e) { console.error("Erro no Radar:", e); }
+        });
+        renderer.render(scene, camera);
     }
 
     setInterval(() => {
-        document.getElementById('time').textContent = new Date().toLocaleTimeString();
+        const n = new Date();
+        document.getElementById('time').textContent = n.toLocaleTimeString();
+        document.getElementById('date').textContent = n.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
     }, 1000);
 
-    init();
-    startAutoScroll();
+    connect();
+    animate();
+
+    // Proteções originais
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('copy', e => e.preventDefault());
 </script>
 </body>
 </html>
