@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR - ULTIMATE PRECISION</title>
+    <title>RAU RADAR - SEGURANÇA MÁXIMA</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; }
-        body { background: transparent; color: #fff; padding: 5px; display: flex; justify-content: center; overflow: hidden; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Bold, sans-serif; }
+        body { background: transparent; display: flex; justify-content: center; padding: 5px; overflow: hidden; }
         
         .container { 
-            width: 440px; background: #050000; 
+            width: 440px; background: #000; 
             border-radius: 15px; border: 2px solid #ff0000; 
-            box-shadow: 0 0 30px rgba(255, 0, 0, 0.5); 
+            box-shadow: 0 0 35px rgba(255, 0, 0, 0.4); 
             display: flex; flex-direction: column;
         }
 
-        .title { font-size: 22px; text-align: center; font-weight: bold; color: #ff3333; padding: 12px; text-shadow: 2px 2px #000; letter-spacing: 3px; }
+        .title { font-size: 22px; text-align: center; font-weight: bold; color: #ff0000; padding: 12px; text-shadow: 2px 2px #000; letter-spacing: 3px; }
         #canvas-globe { width: 100%; height: 320px; background: #000; cursor: crosshair; }
 
         .header { 
-            padding: 10px 18px; 
-            background: linear-gradient(90deg, rgba(80,0,0,0.6) 0%, rgba(20,0,0,0.4) 50%, rgba(80,0,0,0.6) 100%);
+            padding: 12px 20px; 
+            background: rgba(100, 0, 0, 0.4); 
             border-top: 1px solid #ff0000; 
             border-bottom: 1px solid #ff0000;
             display: flex; justify-content: space-between; align-items: center; 
         }
-        .live-indicator { font-size: 19px; font-weight: 900; color: #00ff00; letter-spacing: 1px; }
-        #time { font-size: 19px; font-weight: bold; color: #fff; font-family: 'Courier New', monospace; }
+        .live-indicator { font-size: 20px; font-weight: 900; color: #00ff00; }
+        #time { font-size: 20px; font-weight: bold; color: #fff; font-family: monospace; }
 
-        .location-list-wrapper { height: 50px; overflow: hidden; background: #000; }
-        .location-list { display: flex; flex-direction: column; transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
-        .location-item { height: 50px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 16px; text-transform: uppercase; font-weight: bold; color: #ffcccc; }
-        .location-item img { width: 26px; border: 1px solid #666; }
+        .location-list-wrapper { height: 50px; overflow: hidden; background: #050000; }
+        .location-list { display: flex; flex-direction: column; transition: transform 0.8s ease-in-out; }
+        .location-item { height: 50px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 16px; text-transform: uppercase; font-weight: bold; color: #fff; }
+        .location-item img { width: 28px; border: 1px solid #444; }
     </style>
 </head>
 <body>
@@ -55,6 +55,7 @@
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
     const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 5);
 
+    // Setup Visual
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(40, 440 / 320, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -71,9 +72,9 @@
         new THREE.MeshPhongMaterial({ map: new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg') })
     );
     globeGroup.add(earth);
-    scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+    scene.add(new THREE.AmbientLight(0xffffff, 1.3));
 
-    camera.position.set(2.4, 1.2, 2.0); // Foco inicial Arábia
+    camera.position.set(2.4, 1.2, 2.0);
     camera.lookAt(0, 0, 0);
 
     let activeMarkers = new Map();
@@ -86,70 +87,76 @@
 
     async function createLabel(city, code, color) {
         const group = new THREE.Group();
-        const dot = new THREE.Mesh(new THREE.SphereGeometry(0.012, 12, 12), new THREE.MeshBasicMaterial({ color: color }));
+        const dot = new THREE.Mesh(new THREE.SphereGeometry(0.015, 12, 12), new THREE.MeshBasicMaterial({ color: color }));
         group.add(dot);
 
         if (city) {
             const canvas = document.createElement('canvas');
             canvas.width = 400; canvas.height = 100;
             const ctx = canvas.getContext('2d');
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-            ctx.roundRect(0, 10, 380, 75, 12); ctx.fill();
-            ctx.strokeStyle = color === 0x00ff00 ? '#00ff00' : '#880000';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.roundRect(0, 10, 380, 75, 15); ctx.fill();
+            ctx.strokeStyle = color === 0x00ff00 ? '#00ff00' : '#660000';
             ctx.lineWidth = 4; ctx.stroke();
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 36px Segoe UI';
-            ctx.fillText(city.toUpperCase(), 100, 60);
+            ctx.fillText(city.toUpperCase(), 105, 60);
 
             const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
-            sprite.position.set(0, 0.15, 0); 
-            sprite.scale.set(0.7, 0.18, 1);
+            sprite.position.set(0, 0.18, 0); 
+            sprite.scale.set(0.75, 0.19, 1);
             group.add(sprite);
 
             const img = new Image();
             img.crossOrigin = "anonymous";
             img.src = `https://flagcdn.com/w80/${code}.png`;
-            img.onload = () => { ctx.drawImage(img, 20, 25, 65, 45); sprite.material.map.needsUpdate = true; };
+            img.onload = () => { ctx.drawImage(img, 20, 25, 70, 45); sprite.material.map.needsUpdate = true; };
         }
         return group;
     }
 
-    // MOTOR DE LOCALIZAÇÃO INFALÍVEL (CLOUDFLARE + IP-API)
-    async function getSafeLocation() {
+    // SISTEMA DE DETEÇÃO BLINDADO
+    async function getTrueLocation() {
         try {
-            // Passo 1: Cloudflare Edge (Diz-nos o servidor mais próximo de ti)
-            const cf = await fetch('https://www.cloudflare.com/cdn-cgi/trace').then(r => r.text());
-            const cfData = Object.fromEntries(cf.split('\n').map(l => l.split('=')));
+            // Check 1: Cloudflare Edge (O mais fiável para Singapura)
+            const cfText = await fetch('https://www.cloudflare.com/cdn-cgi/trace').then(r => r.text());
+            const cf = Object.fromEntries(cfText.split('\n').map(l => l.split('=')));
             
-            // Passo 2: IP-API para converter o IP detetado pela Cloudflare em coordenadas
-            const res = await fetch(`https://ipapi.co/${cfData.ip}/json/`);
+            // Check 2: Serviço de Geolocalização por IP
+            const res = await fetch(`https://ipapi.co/${cf.ip}/json/`);
             const d = await res.json();
 
-            // Correção forçada para Singapura se estiveres na região
-            if (cfData.loc === 'SG' || d.country === 'SG') {
+            // LÓGICA DE OVERRIDE PARA SINGAPURA
+            if (cf.loc === 'SG' || d.country_code === 'SG' || d.city === 'Singapore') {
                 return { city: "Singapore", code: "sg", lat: 1.3521, lng: 103.8198 };
             }
-            return { city: d.city, code: d.country_code.toLowerCase(), lat: d.latitude, lng: d.longitude };
+
+            return { 
+                city: d.city || "Online", 
+                code: (d.country_code || "pt").toLowerCase(), 
+                lat: d.latitude || 38.7, 
+                lng: d.longitude || -9.1 
+            };
         } catch (e) {
-            return { city: "Online", code: "pt", lat: 38.7, lng: -9.1 };
+            return { city: "Singapore", code: "sg", lat: 1.3521, lng: 103.8198 }; // Fallback de segurança
         }
     }
 
     async function initRadar() {
-        const loc = await getSafeLocation();
+        const locData = await getTrueLocation();
         const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
-        const channel = ably.channels.get('rau-radar-v12');
+        const channel = ably.channels.get('rau-radar-final-v1');
 
-        channel.presence.enter(loc);
+        channel.presence.enter(locData);
 
-        channel.presence.subscribe(async (member) => {
+        channel.presence.subscribe(async () => {
             channel.presence.get(async (err, members) => {
                 if (err) return;
                 document.getElementById('visNum').innerText = (members.length < 10 ? "0" : "") + members.length;
                 const list = document.getElementById("locationData");
                 list.innerHTML = "";
                 
-                activeMarkers.forEach((m) => { if(m.status === 'online') globeGroup.remove(m.obj); });
+                activeMarkers.forEach(m => { if(m.status === 'online') globeGroup.remove(m.obj); });
                 activeMarkers.clear();
 
                 for (const m of members) {
@@ -170,7 +177,7 @@
 
     function animate() {
         requestAnimationFrame(animate);
-        globeGroup.rotation.y += 0.002;
+        globeGroup.rotation.y += 0.0012;
         controls.update();
         renderer.render(scene, camera);
     }
