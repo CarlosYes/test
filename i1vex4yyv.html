@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v92 - PIN PRECISION</title>
+    <title>RAU RADAR v92 - GEO-FIX PRECISION</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -24,28 +24,24 @@
         
         #canvas-container { width: 100%; height: 320px; background: #000; position: relative; cursor: grab; }
 
-        /* ETIQUETAS "COLADAS" AO GLOBO */
         .location-tag { 
             position: absolute; pointer-events: none; z-index: 100; 
             display: flex; flex-direction: column; align-items: center; 
             transform: translate(-50%, -50%); 
-            will-change: left, top; /* Otimização de performance para movimento */
         }
 
         .user-point-mini { 
-            width: 6px; height: 6px; background: #00ff00; 
-            border-radius: 50%; border: 1px solid #fff; 
-            box-shadow: 0 0 10px #00ff00; 
+            width: 7px; height: 7px; background: #00ff00; 
+            border-radius: 50%; border: 1.5px solid #fff; 
+            box-shadow: 0 0 12px #00ff00; 
         }
 
         .tag-info { 
             margin-bottom: 6px; display: flex; align-items: center; gap: 4px; 
-            background: rgba(0, 0, 0, 0.85); border: 1px solid rgba(255, 255, 255, 0.4); 
+            background: rgba(0, 0, 0, 0.9); border: 1px solid rgba(0, 255, 0, 0.5); 
             padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: bold; 
-            white-space: nowrap; text-transform: uppercase;
+            white-space: nowrap; color: #00ff00;
         }
-
-        .tag-info img { width: 12px; }
 
         /* LISTA VERTICAL STEP-FLOW */
         .location-window {
@@ -57,7 +53,7 @@
 
         .location-scroll-track {
             display: flex; flex-direction: column; padding: 10px;
-            transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .location-item { 
@@ -76,17 +72,14 @@
         .vis-pill { background: #ff0000; padding: 4px 15px; border-radius: 20px; font-size: 18px; font-weight: 900; border: 2px solid #fff; }
         .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 10px; }
         .online { background: #00ff00; }
-        .offline { background: #440000; }
         #date { font-size: 10px; margin-top: 4px; color: #ffaaaa; }
     </style>
 </head>
-<body oncontextmenu="return false;">
+<body>
 
 <div class="container">
     <div class="title">🎧 RAU SYSTEM v92 🎶</div>
-    
     <div id="canvas-container"></div>
-
     <div class="header">
         <div class="info-row">
             <span id="time">00:00:00</span>
@@ -94,10 +87,9 @@
         </div>
         <div id="date"></div>
     </div>
-
     <div class="location-window">
         <div class="location-scroll-track" id="locationData">
-            <div class="location-item">A SINCRONIZAR...</div>
+            <div class="location-item">CALIBRANDO GPS...</div>
         </div>
     </div>
 </div>
@@ -115,9 +107,8 @@
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
 
-    // --- GLOBO ---
+    // --- CORREÇÃO DE MAPEAMENTO ---
     const globe = new THREE.Mesh(
         new THREE.SphereGeometry(1, 64, 64),
         new THREE.MeshPhongMaterial({ 
@@ -125,7 +116,8 @@
             shininess: 15 
         })
     );
-    globe.rotation.y = -Math.PI / 2; // Alinhamento exato para Portugal
+    // IMPORTANTE: Alinhamento da malha 3D com a coordenada 0,0
+    globe.rotation.y = -Math.PI / 2; 
     scene.add(globe);
 
     camera.position.set(2, 1, 2); 
@@ -140,44 +132,36 @@
     let historyUsers = new Map();
     let scrollIndex = 0;
 
-    // Converte Lat/Lng para Vector3 relativo ao centro do Globo
+    // Função de conversão com correção de offset para texturas Three.js padrão
     function latLngToVector3(lat, lng) {
+        const radius = 1.005; // Ligeiramente maior que o globo para não "enterrar" o ponto
         const phi = (90 - lat) * (Math.PI / 180);
         const theta = (lng + 180) * (Math.PI / 180);
         return new THREE.Vector3(
-            -Math.sin(phi) * Math.cos(theta),
-            Math.cos(phi),
-            Math.sin(phi) * Math.sin(theta)
+            -radius * Math.sin(phi) * Math.cos(theta),
+            radius * Math.cos(phi),
+            radius * Math.sin(phi) * Math.sin(theta)
         );
     }
 
     function animate() {
         requestAnimationFrame(animate);
-        
-        if (!controls.active) globe.rotation.y += 0.0015;
+        if (!controls.active) globe.rotation.y += 0.001;
 
-        // ATUALIZAÇÃO PRECISA DAS ETIQUETAS NO ZOOM
         markers.forEach(m => {
-            // Calcula a posição do ponto NO MUNDO 3D considerando a rotação do globo
+            // Segue a matriz real do globo (essencial para o ZOOM)
             const worldPos = m.vector.clone().applyMatrix4(globe.matrixWorld);
-            
-            // Projeta a posição 3D para a tela 2D (coordenadas da câmara)
             const screenPos = worldPos.clone().project(camera);
-            
-            // Verifica se o ponto está na face visível (frente do globo)
             const isVisible = worldPos.angleTo(camera.position) < Math.PI / 2.05;
 
             if (isVisible) {
                 m.tag.style.display = 'flex';
-                // Converte coordenadas normalizadas (-1 a +1) para pixels
-                const x = (screenPos.x * 0.5 + 0.5) * container.clientWidth;
-                const y = (screenPos.y * -0.5 + 0.5) * container.clientHeight;
-                m.tag.style.left = `${x}px`;
-                m.tag.style.top = `${y}px`;
+                m.tag.style.left = `${(screenPos.x * 0.5 + 0.5) * container.clientWidth}px`;
+                m.tag.style.top = `${(screenPos.y * -0.5 + 0.5) * container.clientHeight}px`;
                 
-                // Ajuste de escala opcional conforme o zoom
+                // Mantém o tamanho do ponto consistente no zoom
                 const dist = camera.position.distanceTo(worldPos);
-                m.tag.style.transform = `translate(-50%, -50%) scale(${Math.max(0.7, 2/dist)})`;
+                m.tag.style.transform = `translate(-50%, -50%) scale(${Math.max(0.6, 1.8/dist)})`;
             } else {
                 m.tag.style.display = 'none';
             }
@@ -188,14 +172,13 @@
     }
     animate();
 
-    // LÓGICA DE SALTO DA LISTA (A CADA 5 SEGUNDOS)
+    // Scroll vertical de 5 em 5 segundos
     setInterval(() => {
         const track = document.getElementById("locationData");
-        const items = track.children;
-        if (items.length > 2) {
+        if (track.children.length > 2) {
             scrollIndex++;
-            if (scrollIndex >= items.length) scrollIndex = 0;
-            track.style.transform = `translateY(-${scrollIndex * 44}px)`; // 36px + 8px margem
+            if (scrollIndex >= track.children.length) scrollIndex = 0;
+            track.style.transform = `translateY(-${scrollIndex * 44}px)`;
         }
     }, 5000);
 
@@ -204,8 +187,8 @@
             const res = await fetch("https://api.bigdatacloud.net/data/reverse-geocode-client");
             const d = await res.json();
             const myGeo = {
-                id: SESSION_ID, city: (d.city || "Lisboa").toUpperCase(),
-                country: d.countryName || "Portugal", code: (d.countryCode || "pt").toLowerCase(),
+                id: SESSION_ID, city: (d.city || "LISBOA").toUpperCase(),
+                country: d.countryName, code: (d.countryCode || "pt").toLowerCase(),
                 lat: d.latitude, lng: d.longitude
             };
 
@@ -217,13 +200,10 @@
                 channel.presence.subscribe(() => {
                     channel.presence.get((err, members) => {
                         if (err) return;
-                        document.getElementById('visNum').innerText = members.length < 10 ? "0" + members.length : members.length;
+                        document.getElementById('visNum').innerText = members.length.toString().padStart(2, '0');
                         
                         historyUsers.forEach(u => u.online = false);
-                        members.forEach(m => {
-                            const u = m.data;
-                            if(u && u.id) historyUsers.set(u.id, { ...u, online: true });
-                        });
+                        members.forEach(m => { if(m.data) historyUsers.set(m.data.id, { ...m.data, online: true }); });
 
                         markers.forEach(m => m.tag.remove());
                         markers = [];
@@ -233,13 +213,13 @@
                         Array.from(historyUsers.values()).reverse().forEach(u => {
                             const item = document.createElement("div");
                             item.className = "location-item";
-                            item.innerHTML = `<span class="status-dot ${u.online?'online':'offline'}"></span><img src="https://flagcdn.com/w40/${u.code}.png"><span>${u.city} - ${u.country}</span>`;
+                            item.innerHTML = `<span class="status-dot ${u.online?'online':''}"></span><img src="https://flagcdn.com/w40/${u.code}.png"><span>${u.city}</span>`;
                             track.appendChild(item);
 
                             if(u.online) {
                                 const tag = document.createElement('div');
                                 tag.className = 'location-tag';
-                                tag.innerHTML = `<div class="tag-info"><img src="https://flagcdn.com/w20/${u.code}.png"><span>${u.city}</span></div><div class="user-point-mini"></div>`;
+                                tag.innerHTML = `<div class="tag-info">${u.city}</div><div class="user-point-mini"></div>`;
                                 container.appendChild(tag);
                                 markers.push({ tag, vector: latLngToVector3(u.lat, u.lng) });
                             }
