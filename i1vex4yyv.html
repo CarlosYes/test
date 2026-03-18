@@ -3,35 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR - GEOGRAFIA CORRIGIDA</title>
+    <title>RAU RADAR - PRECISÃO MÁXIMA</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
-        body { background: transparent; color: #fff; padding: 5px; display: flex; justify-content: center; }
-        
+        body { background: transparent; color: #fff; display: flex; justify-content: center; padding: 10px; overflow: hidden; }
         .container { 
-            width: 100%; max-width: 440px; 
-            background: rgba(15, 0, 0, 0.98); 
-            border-radius: 15px; border: 2px solid #ff0000; 
-            box-shadow: 0 0 25px rgba(255, 0, 0, 0.6); 
-            overflow: hidden; position: relative;
-            display: flex; flex-direction: column;
+            width: 440px; background: #0a0000; border-radius: 20px; border: 2px solid #ff0000; 
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.6); display: flex; flex-direction: column; position: relative;
         }
-
-        .title { font-size: 22px; text-align: center; font-weight: bold; color: #ff4444; padding: 12px; text-shadow: 2px 2px #000; letter-spacing: 2px; }
-        #canvas-globe { width: 100%; height: 320px; background: #000; position: relative; cursor: grab; }
-
-        .header { padding: 12px; background: rgba(120, 0, 0, 0.3); border-bottom: 1px solid rgba(255,0,0,0.4); text-align: center; }
-        .info-row { display: flex; justify-content: center; align-items: center; gap: 20px; }
-        #time { font-size: 22px; font-weight: bold; color: #fff; }
-        .vis-pill { background: #ff0000; padding: 4px 15px; border-radius: 20px; font-size: 20px; font-weight: bold; color: #fff; border: 1px solid #fff; min-width: 60px; text-align: center; }
-
-        .location-list-wrapper { height: 50px; overflow: hidden; background: #050000; border-top: 1px solid #300; }
+        .title { font-size: 22px; text-align: center; font-weight: bold; color: #ff4444; padding: 12px; letter-spacing: 2px; }
+        #canvas-globe { width: 100%; height: 320px; background: #000; cursor: grab; }
+        .header { padding: 12px; background: rgba(100, 0, 0, 0.2); border-top: 1px solid #400; text-align: center; }
+        .info-row { display: flex; justify-content: center; align-items: center; gap: 15px; }
+        #time { font-size: 24px; font-weight: bold; color: #fff; }
+        .vis-pill { background: #ff0000; padding: 4px 15px; border-radius: 20px; font-size: 20px; font-weight: bold; border: 1px solid #fff; }
+        .location-list-wrapper { height: 50px; overflow: hidden; background: #000; border-top: 1px solid #300; }
         .location-list { display: flex; flex-direction: column; transition: transform 0.8s ease-in-out; }
-        .location-item { height: 50px; padding: 0 15px; background: rgba(255,0,0,0.1); border-left: 4px solid #f00; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 16px; text-transform: uppercase; font-weight: bold; flex-shrink: 0; }
-        .location-item img { width: 25px; border-radius: 2px; }
+        .location-item { height: 50px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 15px; font-weight: bold; text-transform: uppercase; color: #ffcccc; }
+        .location-item img { width: 24px; border-radius: 2px; }
+        #date { font-size: 12px; color: #a55; margin-top: 5px; text-transform: uppercase; }
     </style>
 </head>
 <body>
@@ -44,7 +37,7 @@
             <span id="time">00:00:00</span>
             <div class="vis-pill">👥 <span id="visNum">00</span></div>
         </div>
-        <div id="date" style="font-size: 12px; margin-top: 6px; color: #ffaaaa; font-weight: bold; text-transform: uppercase;"></div>
+        <div id="date"></div>
     </div>
     <div class="location-list-wrapper">
         <div class="location-list" id="locationData"></div>
@@ -55,16 +48,14 @@
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
     const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 5);
 
-    const container = document.getElementById('canvas-globe');
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(40, 440 / 320, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(440, 320);
-    container.appendChild(renderer.domElement);
+    document.getElementById('canvas-globe').appendChild(renderer.domElement);
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.enablePan = false;
 
     const globeGroup = new THREE.Group();
     scene.add(globeGroup);
@@ -77,16 +68,12 @@
     );
     globeGroup.add(earth);
     scene.add(new THREE.AmbientLight(0xffffff, 1.4));
-    
-    // CORREÇÃO GEOGRÁFICA: Mira na Arábia Saudita (Lat: 24, Lng: 45)
-    const lat = 24, lng = 45;
-    const phi = (90 - lat) * (Math.PI / 180);
-    const theta = (lng + 180) * (Math.PI / 180);
-    camera.position.set(
-        -3.0 * Math.sin(phi) * Math.cos(theta),
-        3.0 * Math.cos(phi),
-        3.0 * Math.sin(phi) * Math.sin(theta)
-    );
+
+    // INÍCIO NA ARÁBIA SAUDITA (LAT 24, LON 45)
+    const latS = 24, lonS = 45;
+    const phiS = (90 - latS) * (Math.PI / 180);
+    const thetaS = (lonS + 180) * (Math.PI / 180);
+    camera.position.set(-3.2 * Math.sin(phiS) * Math.cos(thetaS), 3.2 * Math.cos(phiS), 3.2 * Math.sin(phiS) * Math.sin(thetaS));
     camera.lookAt(0, 0, 0);
 
     let markers = [];
@@ -96,75 +83,80 @@
         const phi = (90 - lat) * (Math.PI / 180);
         const theta = (lng + 180) * (Math.PI / 180);
         return new THREE.Vector3(
-            -1.01 * Math.sin(phi) * Math.cos(theta), 
-            1.01 * Math.cos(phi), 
-            1.01 * Math.sin(phi) * Math.sin(theta)
+            -1.012 * Math.sin(phi) * Math.cos(theta), 
+            1.012 * Math.cos(phi), 
+            1.012 * Math.sin(phi) * Math.sin(theta)
         );
     }
 
-    // Cria o marcador 3D fundido (Bolinha + Texto) para garantir precisão
-    function createMarkerSprite(city) {
-        const canvas = document.createElement('canvas');
-        canvas.width = 256; canvas.height = 64;
-        const ctx = canvas.getContext('2d');
-        
-        // Ponto verde luminoso
-        ctx.fillStyle = '#00ff00';
-        ctx.shadowBlur = 10; ctx.shadowColor = "#00ff00";
-        ctx.beginPath(); ctx.arc(15, 32, 7, 0, Math.PI * 2); ctx.fill();
-        
-        // Texto
-        ctx.shadowBlur = 0; ctx.fillStyle = 'white';
-        ctx.font = 'bold 22px Segoe UI';
-        ctx.fillText(city.toUpperCase(), 30, 40);
+    function createMarker(city) {
+        const group = new THREE.Group();
+        const dot = new THREE.Mesh(
+            new THREE.SphereGeometry(0.012, 12, 12),
+            new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+        );
+        group.add(dot);
 
-        const texture = new THREE.CanvasTexture(canvas);
-        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture }));
-        sprite.scale.set(0.6, 0.15, 1);
-        return sprite;
+        const canvas = document.createElement('canvas');
+        canvas.width = 300; canvas.height = 60;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#00ff00'; ctx.font = 'bold 26px Segoe UI';
+        ctx.shadowBlur = 8; ctx.shadowColor = "black";
+        ctx.fillText(city.toUpperCase(), 10, 40);
+
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
+        sprite.position.set(0.15, 0.05, 0);
+        sprite.scale.set(0.5, 0.12, 1);
+        group.add(sprite);
+        return group;
     }
 
     async function initRadar() {
+        let lat, lon, city, code;
+        
         try {
+            // Tentativa de obter dados de alta precisão via Geocoding
             const res = await fetch("https://api.bigdatacloud.net/data/reverse-geocode-client");
             const d = await res.json();
-            const myData = { id: SESSION_ID, city: d.city || "Local", code: (d.countryCode || "pt").toLowerCase(), lat: d.latitude, lng: d.longitude };
+            lat = d.latitude; lon = d.longitude; 
+            city = d.city || d.locality || "Visita";
+            code = (d.countryCode || "pt").toLowerCase();
 
             const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
             const channel = ably.channels.get('rau-radar-v9');
 
-            channel.presence.enter(myData);
+            channel.presence.enter({ id: SESSION_ID, city, code, lat, lng: lon });
             channel.presence.subscribe(() => {
                 channel.presence.get((err, members) => {
                     if (err) return;
                     document.getElementById('visNum').innerText = (members.length < 10 ? "0" : "") + members.length;
                     const list = document.getElementById("locationData");
                     list.innerHTML = "";
-                    
                     markers.forEach(m => globeGroup.remove(m));
                     markers = [];
 
                     members.forEach(m => {
-                        const u = m.data; if (!u) return;
+                        const u = m.data; if (!u || !u.lat) return;
+                        
                         const div = document.createElement("div");
                         div.className = "location-item";
                         div.innerHTML = `<img src="https://flagcdn.com/w40/${u.code}.png"> <span>${u.city}</span>`;
                         list.appendChild(div);
 
                         const pos = latLngToVec(u.lat, u.lng);
-                        const marker = createMarkerSprite(u.city);
-                        marker.position.copy(pos);
-                        globeGroup.add(marker);
-                        markers.push(marker);
+                        const mkr = createMarker(u.city);
+                        mkr.position.copy(pos);
+                        globeGroup.add(mkr);
+                        markers.push(mkr);
                     });
                 });
             });
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error("Erro na localização:", e); }
     }
 
     function animate() {
         requestAnimationFrame(animate);
-        globeGroup.rotation.y += 0.0012; // Rotação lenta
+        globeGroup.rotation.y += 0.001;
         controls.update();
         renderer.render(scene, camera);
     }
@@ -179,7 +171,7 @@
 
     setInterval(() => {
         const n = new Date();
-        document.getElementById('time').textContent = n.toLocaleTimeString();
+        document.getElementById('time').textContent = n.toLocaleTimeString('pt-PT');
         document.getElementById('date').textContent = n.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
     }, 1000);
 
