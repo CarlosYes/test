@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR - FOCO ARÁBIA SAUDITA</title>
+    <title>RAU RADAR - ORIGINAL SEGURO</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS3DRenderer.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -18,7 +17,7 @@
         }
 
         .title { font-size: 22px; text-align: center; font-weight: 900; color: #ff0000; padding: 12px; text-shadow: 0 0 10px #ff0000; letter-spacing: 3px; }
-        #canvas-globe { width: 100%; height: 320px; background: #000; cursor: grab; position: relative; }
+        #canvas-globe { width: 100%; height: 320px; background: #000; position: relative; }
         #css3d-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 
         .header { 
@@ -65,11 +64,10 @@
     css3dRenderer.setSize(440, 320);
     document.getElementById('css3d-layer').appendChild(css3dRenderer.domElement);
 
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
     const globeGroup = new THREE.Group();
     scene.add(globeGroup);
 
-    // DESIGN ORIGINAL
+    // GLOBO ORIGINAL AZUL
     const earth = new THREE.Mesh(
         new THREE.SphereGeometry(1, 64, 64),
         new THREE.MeshPhongMaterial({ 
@@ -79,30 +77,27 @@
     globeGroup.add(earth);
     scene.add(new THREE.AmbientLight(0xffffff, 1.3));
 
-    // INÍCIO NA ARÁBIA SAUDITA (Lat 23.8, Lng 45.0)
-    camera.position.set(1.5, 0.8, 2.0);
-    controls.update();
+    // --- FOCO ARÁBIA SAUDITA ---
+    camera.position.set(1.6, 0.7, 2.2); 
+    camera.lookAt(0, 0, 0);
 
     let activeMarkers = new Map();
 
-    async function startRadar() {
+    async function startService() {
         try {
-            // SERVIÇO REAL: Deteta a tua localização atual (IP real ou VPN)
             const res = await fetch('https://ipapi.co/json/');
             const geo = await res.json();
             if(!geo.city) return;
 
             const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: 'RAU-' + Math.random().toString(36).substr(2, 5) });
-            const channel = ably.channels.get('radar-saudi-focus');
+            const channel = ably.channels.get('radar-final-sem-aldrabice');
             
-            // Envia os dados reais detetados para o servidor
             channel.presence.enter({ city: geo.city.toUpperCase(), lat: geo.latitude, lng: geo.longitude });
 
             channel.presence.subscribe(() => {
                 channel.presence.get((err, members) => {
                     if (err) return;
                     document.getElementById('visNum').innerText = members.length.toString().padStart(2, '0');
-                    
                     activeMarkers.forEach(m => scene.remove(m.label));
                     activeMarkers.clear();
 
@@ -113,24 +108,17 @@
                         div.innerHTML = `<div class="dot-marker"></div><span>${u.city}</span>`;
                         const label = new THREE.CSS3DSprite(div);
                         label.scale.set(0.0022, 0.0022, 0.0022);
-                        
-                        const phi = (90 - u.lat) * (Math.PI / 180);
-                        const theta = (u.lng + 180) * (Math.PI / 180);
-                        label.position.set(-1.08 * Math.sin(phi) * Math.cos(theta), 1.08 * Math.cos(phi), 1.08 * Math.sin(phi) * Math.sin(theta));
-                        
                         scene.add(label);
                         activeMarkers.set(m.clientId, {label, lat: u.lat, lng: u.lng});
                     });
                 });
             });
-        } catch (e) {
-            document.getElementById('visNum').innerText = "ERRO";
-        }
+        } catch (e) { document.getElementById('visNum').innerText = "!!"; }
     }
 
     function animate() {
         requestAnimationFrame(animate);
-        globeGroup.rotation.y += 0.005;
+        globeGroup.rotation.y += 0.004; 
         
         activeMarkers.forEach(m => {
             const phi = (90 - m.lat) * (Math.PI / 180);
@@ -142,8 +130,11 @@
         css3dRenderer.render(scene, camera);
     }
 
-    setInterval(() => { document.getElementById('time').textContent = new Date().toLocaleTimeString('pt-PT', { hour12: false }); }, 1000);
-    startRadar();
+    setInterval(() => { 
+        document.getElementById('time').textContent = new Date().toLocaleTimeString('pt-PT', { hour12: false }); 
+    }, 1000);
+
+    startService();
     animate();
 </script>
 </body>
