@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR - DESIGN ORIGINAL</title>
+    <title>RAU RADAR - DESIGN ORIGINAL DINÂMICO</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS3DRenderer.js"></script>
@@ -29,10 +29,9 @@
         .live-indicator { font-size: 20px; font-weight: 900; color: #00ff00; text-shadow: 0 0 10px #00ff00; }
         #time { font-size: 20px; font-weight: bold; color: #fff; font-family: monospace; }
 
-        /* ETIQUETA ORIGINAL VERMELHO RELUZENTE */
         .globe-label {
             display: flex; align-items: center; gap: 10px; padding: 10px 18px;
-            background: rgba(0, 0, 0, 0.8); border-radius: 25px; border: 2px solid #ff0000;
+            background: rgba(0, 0, 0, 0.85); border-radius: 25px; border: 2px solid #ff0000;
             box-shadow: 0 0 20px #ff0000; backface-visibility: hidden;
         }
         .globe-label span {
@@ -48,15 +47,14 @@
     <div class="title">🎧 RAU RADAR 🎶</div>
     <div id="canvas-globe"><div id="css3d-layer"></div></div>
     <div class="header">
-        <div class="live-indicator">LIVE: <span id="visNum">01</span></div>
+        <div class="live-indicator">LIVE: <span id="visNum">--</span></div>
         <span id="time">00:00:00</span>
     </div>
 </div>
 
 <script>
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
-    const SESSION_ID = 'RAU-ORIGINAL-' + Math.random().toString(36).substr(2, 5);
-
+    
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(40, 440 / 320, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -72,7 +70,7 @@
     const globeGroup = new THREE.Group();
     scene.add(globeGroup);
 
-    // MAPA DE SATÉLITE ORIGINAL (O GLOBO REAL)
+    // DESIGN ORIGINAL EXATO
     const earth = new THREE.Mesh(
         new THREE.SphereGeometry(1, 64, 64),
         new THREE.MeshPhongMaterial({ 
@@ -85,36 +83,49 @@
 
     let activeMarkers = new Map();
 
-    async function initRadar() {
-        const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
-        const channel = ably.channels.get('radar-original-fixed');
-        
-        channel.presence.enter({ city: "SINGAPORE", lat: 1.3521, lng: 103.8198 });
+    async function startRadar() {
+        try {
+            // DETEÇÃO REAL: Se ligares a VPN em Singapura, ele mostra SG. Se desligares, mostra a tua cidade real.
+            const response = await fetch('https://ipapi.co/json/');
+            const data = await response.json();
+            
+            const currentCity = data.city ? data.city.toUpperCase() : "DESCONHECIDO";
+            const currentLat = data.latitude;
+            const currentLng = data.longitude;
 
-        channel.presence.subscribe(() => {
-            channel.presence.get((err, members) => {
-                if (err) return;
-                document.getElementById('visNum').innerText = members.length.toString().padStart(2, '0');
-                activeMarkers.forEach(m => css3dScene.remove(m.label));
-                activeMarkers.clear();
+            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: 'RAU-' + Math.random().toString(36).substr(2, 5) });
+            const channel = ably.channels.get('radar-v2026-dynamic');
+            
+            channel.presence.enter({ city: currentCity, lat: currentLat, lng: currentLng });
 
-                members.forEach(m => {
-                    const u = m.data; if(!u.lat) return;
-                    const div = document.createElement('div');
-                    div.className = 'globe-label';
-                    div.innerHTML = `<div class="dot-marker"></div><span>${u.city}</span>`;
-                    const label = new THREE.CSS3DSprite(div);
-                    label.scale.set(0.0022, 0.0022, 0.0022);
+            channel.presence.subscribe(() => {
+                channel.presence.get((err, members) => {
+                    if (err) return;
+                    document.getElementById('visNum').innerText = members.length.toString().padStart(2, '0');
                     
-                    const phi = (90 - u.lat) * (Math.PI / 180);
-                    const theta = (u.lng + 180) * (Math.PI / 180);
-                    label.position.set(-1.08 * Math.sin(phi) * Math.cos(theta), 1.08 * Math.cos(phi), 1.08 * Math.sin(phi) * Math.sin(theta));
-                    
-                    css3dScene.add(label);
-                    activeMarkers.set(m.clientId, {label});
+                    activeMarkers.forEach(m => css3dScene.remove(m.label));
+                    activeMarkers.clear();
+
+                    members.forEach(m => {
+                        const u = m.data; if(!u || !u.lat) return;
+                        const div = document.createElement('div');
+                        div.className = 'globe-label';
+                        div.innerHTML = `<div class="dot-marker"></div><span>${u.city}</span>`;
+                        const label = new THREE.CSS3DSprite(div);
+                        label.scale.set(0.0022, 0.0022, 0.0022);
+                        
+                        const phi = (90 - u.lat) * (Math.PI / 180);
+                        const theta = (u.lng + 180) * (Math.PI / 180);
+                        label.position.set(-1.08 * Math.sin(phi) * Math.cos(theta), 1.08 * Math.cos(phi), 1.08 * Math.sin(phi) * Math.sin(theta));
+                        
+                        css3dScene.add(label);
+                        activeMarkers.set(m.clientId, {label});
+                    });
                 });
             });
-        });
+        } catch (e) {
+            console.error("Erro no serviço de localização.");
+        }
     }
 
     function animate() {
@@ -127,7 +138,7 @@
     }
 
     setInterval(() => { document.getElementById('time').textContent = new Date().toLocaleTimeString('pt-PT', { hour12: false }); }, 1000);
-    initRadar();
+    startRadar();
     animate();
 </script>
 </body>
