@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v92 - STEP FLOW</title>
+    <title>RAU RADAR v92 - PIN PRECISION</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -24,55 +24,60 @@
         
         #canvas-container { width: 100%; height: 320px; background: #000; position: relative; cursor: grab; }
 
-        /* --- JANELA COM SOMBRAS E MOVIMENTO PASSO-A-PASSO --- */
+        /* ETIQUETAS "COLADAS" AO GLOBO */
+        .location-tag { 
+            position: absolute; pointer-events: none; z-index: 100; 
+            display: flex; flex-direction: column; align-items: center; 
+            transform: translate(-50%, -50%); 
+            will-change: left, top; /* Otimização de performance para movimento */
+        }
+
+        .user-point-mini { 
+            width: 6px; height: 6px; background: #00ff00; 
+            border-radius: 50%; border: 1px solid #fff; 
+            box-shadow: 0 0 10px #00ff00; 
+        }
+
+        .tag-info { 
+            margin-bottom: 6px; display: flex; align-items: center; gap: 4px; 
+            background: rgba(0, 0, 0, 0.85); border: 1px solid rgba(255, 255, 255, 0.4); 
+            padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: bold; 
+            white-space: nowrap; text-transform: uppercase;
+        }
+
+        .tag-info img { width: 12px; }
+
+        /* LISTA VERTICAL STEP-FLOW */
         .location-window {
-            height: 120px; 
-            background: #050000; 
-            border-top: 2px solid #400;
-            position: relative;
-            overflow: hidden;
-            /* Máscara de gradiente para suavizar entrada/saída */
-            -webkit-mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
-            mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+            height: 110px; background: #050000; border-top: 2px solid #400;
+            position: relative; overflow: hidden;
+            -webkit-mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
+            mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
         }
 
         .location-scroll-track {
-            display: flex;
-            flex-direction: column;
-            padding: 15px 10px;
-            transition: transform 0.8s cubic-bezier(0.45, 0.05, 0.55, 0.95); /* Deslize suave */
+            display: flex; flex-direction: column; padding: 10px;
+            transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .location-item { 
-            height: 40px; /* Altura fixa para o salto bater certo */
-            padding: 8px; 
-            background: rgba(255,0,0,0.08); 
-            border-left: 4px solid #f00; 
-            border-radius: 4px; 
-            display: flex; 
-            align-items: center; 
-            margin-bottom: 10px; 
-            font-size: 11px; 
-            text-transform: uppercase; 
-            font-weight: bold;
+            height: 36px; padding: 6px 12px; background: rgba(255,0,0,0.08); 
+            border-left: 4px solid #f00; border-radius: 4px; 
+            display: flex; align-items: center; margin-bottom: 8px; 
+            font-size: 11px; text-transform: uppercase; font-weight: bold;
             flex-shrink: 0;
         }
 
-        .location-item img { width: 20px; margin-right: 12px; }
-        
-        /* GLOBO E PONTOS */
-        .location-tag { position: absolute; pointer-events: none; z-index: 100; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -50%); }
-        .user-point-mini { width: 6px; height: 6px; background: #00ff00; border-radius: 50%; border: 1px solid #fff; box-shadow: 0 0 10px #00ff00; }
-        .tag-info { margin-bottom: 8px; display: flex; align-items: center; gap: 4px; background: rgba(0, 0, 0, 0.85); border: 1px solid rgba(255, 255, 255, 0.4); padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: bold; }
+        .location-item img { width: 18px; margin-right: 10px; }
 
         .header { padding: 10px; background: rgba(150, 0, 0, 0.2); border-top: 1px solid rgba(255,0,0,0.4); text-align: center; }
         .info-row { display: flex; justify-content: center; align-items: center; gap: 20px; }
         #time { font-size: 20px; font-weight: bold; font-family: monospace; }
         .vis-pill { background: #ff0000; padding: 4px 15px; border-radius: 20px; font-size: 18px; font-weight: 900; border: 2px solid #fff; }
         .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 10px; }
-        .online { background: #00ff00; box-shadow: 0 0 5px #00ff00; }
+        .online { background: #00ff00; }
         .offline { background: #440000; }
-        #date { font-size: 10px; margin-top: 4px; color: #ffaaaa; text-transform: uppercase; }
+        #date { font-size: 10px; margin-top: 4px; color: #ffaaaa; }
     </style>
 </head>
 <body oncontextmenu="return false;">
@@ -92,7 +97,7 @@
 
     <div class="location-window">
         <div class="location-scroll-track" id="locationData">
-            <div class="location-item">INICIALIZANDO RADAR...</div>
+            <div class="location-item">A SINCRONIZAR...</div>
         </div>
     </div>
 </div>
@@ -110,7 +115,9 @@
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
 
+    // --- GLOBO ---
     const globe = new THREE.Mesh(
         new THREE.SphereGeometry(1, 64, 64),
         new THREE.MeshPhongMaterial({ 
@@ -118,13 +125,13 @@
             shininess: 15 
         })
     );
-    globe.rotation.y = -Math.PI / 2; // Ajuste geográfico central
+    globe.rotation.y = -Math.PI / 2; // Alinhamento exato para Portugal
     scene.add(globe);
 
-    camera.position.set(1.8, 0.8, 2.2); 
+    camera.position.set(2, 1, 2); 
     controls.update();
 
-    scene.add(new THREE.AmbientLight(0xffffff, 1.3));
+    scene.add(new THREE.AmbientLight(0xffffff, 1.2));
     const sun = new THREE.DirectionalLight(0xffffff, 0.6);
     sun.position.set(5, 3, 5);
     scene.add(sun);
@@ -133,47 +140,62 @@
     let historyUsers = new Map();
     let scrollIndex = 0;
 
+    // Converte Lat/Lng para Vector3 relativo ao centro do Globo
     function latLngToVector3(lat, lng) {
         const phi = (90 - lat) * (Math.PI / 180);
         const theta = (lng + 180) * (Math.PI / 180);
-        return new THREE.Vector3(-Math.sin(phi) * Math.cos(theta), Math.cos(phi), Math.sin(phi) * Math.sin(theta));
+        return new THREE.Vector3(
+            -Math.sin(phi) * Math.cos(theta),
+            Math.cos(phi),
+            Math.sin(phi) * Math.sin(theta)
+        );
     }
 
     function animate() {
         requestAnimationFrame(animate);
-        if (!controls.active) globe.rotation.y += 0.002;
         
+        if (!controls.active) globe.rotation.y += 0.0015;
+
+        // ATUALIZAÇÃO PRECISA DAS ETIQUETAS NO ZOOM
         markers.forEach(m => {
-            const pos = m.vector.clone().applyQuaternion(globe.quaternion);
-            const vector = pos.clone().project(camera);
-            const isVisible = pos.angleTo(camera.position) < Math.PI/2;
+            // Calcula a posição do ponto NO MUNDO 3D considerando a rotação do globo
+            const worldPos = m.vector.clone().applyMatrix4(globe.matrixWorld);
             
-            if(isVisible) {
+            // Projeta a posição 3D para a tela 2D (coordenadas da câmara)
+            const screenPos = worldPos.clone().project(camera);
+            
+            // Verifica se o ponto está na face visível (frente do globo)
+            const isVisible = worldPos.angleTo(camera.position) < Math.PI / 2.05;
+
+            if (isVisible) {
                 m.tag.style.display = 'flex';
-                m.tag.style.left = `${(vector.x * 0.5 + 0.5) * container.clientWidth}px`;
-                m.tag.style.top = `${(vector.y * -0.5 + 0.5) * container.clientHeight}px`;
+                // Converte coordenadas normalizadas (-1 a +1) para pixels
+                const x = (screenPos.x * 0.5 + 0.5) * container.clientWidth;
+                const y = (screenPos.y * -0.5 + 0.5) * container.clientHeight;
+                m.tag.style.left = `${x}px`;
+                m.tag.style.top = `${y}px`;
+                
+                // Ajuste de escala opcional conforme o zoom
+                const dist = camera.position.distanceTo(worldPos);
+                m.tag.style.transform = `translate(-50%, -50%) scale(${Math.max(0.7, 2/dist)})`;
             } else {
                 m.tag.style.display = 'none';
             }
         });
+
         controls.update();
         renderer.render(scene, camera);
     }
     animate();
 
-    // LÓGICA DO SCROLL DE 5 EM 5 SEGUNDOS
+    // LÓGICA DE SALTO DA LISTA (A CADA 5 SEGUNDOS)
     setInterval(() => {
         const track = document.getElementById("locationData");
-        const items = track.getElementsByClassName("location-item");
-        
-        if (items.length > 1) {
+        const items = track.children;
+        if (items.length > 2) {
             scrollIndex++;
             if (scrollIndex >= items.length) scrollIndex = 0;
-            
-            const offset = scrollIndex * 50; // 40px altura + 10px margem
-            track.style.transform = `translateY(-${offset}px)`;
-        } else {
-            track.style.transform = `translateY(0)`;
+            track.style.transform = `translateY(-${scrollIndex * 44}px)`; // 36px + 8px margem
         }
     }, 5000);
 
@@ -182,8 +204,8 @@
             const res = await fetch("https://api.bigdatacloud.net/data/reverse-geocode-client");
             const d = await res.json();
             const myGeo = {
-                id: SESSION_ID, city: (d.city || d.locality || "GPS").toUpperCase(),
-                country: d.countryName || "Mundo", code: (d.countryCode || "pt").toLowerCase(),
+                id: SESSION_ID, city: (d.city || "Lisboa").toUpperCase(),
+                country: d.countryName || "Portugal", code: (d.countryCode || "pt").toLowerCase(),
                 lat: d.latitude, lng: d.longitude
             };
 
@@ -208,9 +230,7 @@
                         const track = document.getElementById("locationData");
                         track.innerHTML = "";
 
-                        const userArray = Array.from(historyUsers.values()).reverse();
-
-                        userArray.forEach(u => {
+                        Array.from(historyUsers.values()).reverse().forEach(u => {
                             const item = document.createElement("div");
                             item.className = "location-item";
                             item.innerHTML = `<span class="status-dot ${u.online?'online':'offline'}"></span><img src="https://flagcdn.com/w40/${u.code}.png"><span>${u.city} - ${u.country}</span>`;
