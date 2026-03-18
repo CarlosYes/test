@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v92 - STATUS EDITION</title>
+    <title>RAU RADAR v92 - PRECISION FOCUS</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -24,32 +24,49 @@
         
         #canvas-container { width: 100%; height: 350px; background: #000; position: relative; cursor: grab; overflow: hidden; }
 
-        /* STATUS DOTS */
-        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; box-shadow: 0 0 5px currentColor; }
-        .online { background-color: #00ff00; color: #00ff00; }
-        .offline { background-color: #660000; color: #660000; }
-
+        /* ETIQUETAS COM CONTORNO E PONTO DE PRECISÃO */
         .location-tag {
             position: absolute; color: #fff; font-size: 10px; font-weight: bold;
             text-transform: uppercase; pointer-events: none; display: flex;
-            align-items: center; gap: 5px; white-space: nowrap;
-            text-shadow: 2px 2px 4px #000; background: rgba(20, 0, 0, 0.85);
-            padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.3); z-index: 100;
-            transform: translate(-50%, -50%);
+            flex-direction: column; align-items: center; gap: 2px; z-index: 100;
+            transform: translate(-50%, -100%); /* Posiciona acima do ponto */
         }
-        .location-tag img { width: 16px; border-radius: 1px; }
 
-        .header { padding: 12px; background: rgba(150, 0, 0, 0.25); border-top: 1px solid rgba(255,0,0,0.4); text-align: center; }
+        .tag-box {
+            display: flex; align-items: center; gap: 5px;
+            background: rgba(0, 0, 0, 0.6); /* Fundo escuro translúcido */
+            border: 1px solid rgba(255, 255, 255, 0.4); /* Contorno sem cor sólida */
+            padding: 2px 6px; border-radius: 3px;
+            backdrop-filter: blur(2px);
+            white-space: nowrap;
+        }
+
+        /* O PONTO DA PESSOA */
+        .user-point {
+            width: 8px; height: 8px; background: #00ff00;
+            border-radius: 50%; border: 1px solid #fff;
+            box-shadow: 0 0 10px #00ff00, 0 0 20px #00ff00;
+            margin-top: 2px;
+        }
+
+        .tag-box img { width: 14px; border-radius: 1px; }
+
+        /* LISTA E STATUS */
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        .online { background: #00ff00; box-shadow: 0 0 8px #00ff00; }
+        .offline { background: #440000; }
+
+        .header { padding: 12px; background: rgba(150, 0, 0, 0.2); border-top: 1px solid rgba(255,0,0,0.4); text-align: center; }
         .info-row { display: flex; justify-content: center; align-items: center; gap: 20px; }
-        #time { font-size: 22px; font-weight: bold; color: #fff; font-family: 'Courier New', monospace; }
-        .vis-pill { background: #ff0000; padding: 5px 18px; border-radius: 20px; font-size: 22px; font-weight: 900; color: #fff; border: 2px solid #fff; min-width: 80px; text-align: center; }
+        #time { font-size: 22px; font-weight: bold; font-family: monospace; }
+        .vis-pill { background: #ff0000; padding: 4px 15px; border-radius: 20px; font-size: 20px; font-weight: 900; border: 2px solid #fff; }
 
-        .location-list { max-height: 150px; overflow-y: auto; padding: 12px; background: #080000; border-top: 2px solid #400; }
-        .location-item { padding: 8px; background: rgba(255,0,0,0.08); border-left: 5px solid #f00; border-radius: 4px; display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 11px; text-transform: uppercase; font-weight: bold; }
-        .location-item img { width: 20px; height: 13px; }
+        .location-list { max-height: 150px; overflow-y: auto; padding: 10px; background: #050000; border-top: 2px solid #300; }
+        .location-item { padding: 8px; background: rgba(255,0,0,0.05); border-left: 4px solid #f00; border-radius: 4px; display: flex; align-items: center; margin-bottom: 6px; font-size: 11px; text-transform: uppercase; font-weight: bold; }
+        .location-item img { width: 18px; margin-right: 10px; }
 
-        #date { font-size: 11px; margin-top: 6px; color: #ffaaaa; font-weight: bold; text-transform: uppercase; }
-        .location-list::-webkit-scrollbar { width: 6px; }
+        #date { font-size: 11px; margin-top: 4px; color: #ffaaaa; text-transform: uppercase; }
+        .location-list::-webkit-scrollbar { width: 5px; }
         .location-list::-webkit-scrollbar-thumb { background: #f00; border-radius: 10px; }
     </style>
 </head>
@@ -97,7 +114,7 @@
     );
     scene.add(globe);
 
-    // Início na Arábia Saudita
+    // Centralizar Arábia Saudita e começar a girar
     globe.rotation.y = -Math.PI / 1.5; 
     camera.position.set(0, 0.8, 2.8); 
     controls.update();
@@ -108,7 +125,7 @@
     scene.add(sun);
 
     let markers = [];
-    let historyUsers = new Map(); // Para guardar quem saiu
+    let historyUsers = new Map();
 
     function latLngToVector3(lat, lng) {
         const phi = (90 - lat) * (Math.PI / 180);
@@ -157,54 +174,40 @@
 
             ably.connection.on('connected', () => {
                 channel.presence.enter(myGeo);
-
-                // Escutar atualizações de presença
                 channel.presence.subscribe(() => {
                     channel.presence.get((err, members) => {
                         if (err) return;
-
-                        // 1. Atualizar Contador de ONLINE agora
                         document.getElementById('visNum').innerText = members.length < 10 ? "0" + members.length : members.length;
-
-                        // 2. Atualizar mapa de histórico
-                        // Primeiro, marcamos todos no histórico como OFFLINE (bolinha escura)
+                        
                         historyUsers.forEach(u => u.online = false);
-
-                        // Depois, marcamos os que estão presentes como ONLINE (bolinha verde)
                         members.forEach(m => {
                             const u = m.data;
-                            if(u && u.id) {
-                                historyUsers.set(u.id, { ...u, online: true });
-                            }
+                            if(u && u.id) historyUsers.set(u.id, { ...u, online: true });
                         });
 
-                        // 3. Limpar Tags e Lista Visual
                         markers.forEach(m => m.tag.remove());
                         markers = [];
                         const list = document.getElementById("locationData");
                         list.innerHTML = "";
 
-                        // 4. Renderizar do mais recente para o mais antigo
-                        const sortedUsers = Array.from(historyUsers.values()).reverse();
-
-                        sortedUsers.forEach(u => {
-                            const statusClass = u.online ? 'online' : 'offline';
-                            
-                            // Adicionar na lista inferior
+                        Array.from(historyUsers.values()).reverse().forEach(u => {
+                            // Lista Inferior
                             const item = document.createElement("div");
                             item.className = "location-item";
-                            item.innerHTML = `
-                                <span class="status-dot ${statusClass}"></span>
-                                <img src="https://flagcdn.com/w40/${u.code}.png"> 
-                                <span>${u.city} - ${u.country}</span>
-                            `;
+                            item.innerHTML = `<span class="status-dot ${u.online?'online':'offline'}"></span><img src="https://flagcdn.com/w40/${u.code}.png"><span>${u.city} - ${u.country}</span>`;
                             list.appendChild(item);
 
-                            // Só colocamos tag no GLOBO se estiver ONLINE
+                            // Etiqueta no Globo (apenas se Online)
                             if(u.online) {
                                 const tag = document.createElement('div');
                                 tag.className = 'location-tag';
-                                tag.innerHTML = `<span class="status-dot online"></span><img src="https://flagcdn.com/w20/${u.code}.png"> ${u.city}`;
+                                tag.innerHTML = `
+                                    <div class="tag-box">
+                                        <img src="https://flagcdn.com/w20/${u.code}.png">
+                                        <span>${u.city}</span>
+                                    </div>
+                                    <div class="user-point"></div>
+                                `;
                                 container.appendChild(tag);
                                 markers.push({ tag, vector: latLngToVector3(u.lat, u.lng) });
                             }
