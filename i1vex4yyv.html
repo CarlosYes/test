@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR - SEGURANÇA MÁXIMA</title>
+    <title>RAU RADAR - TURBO RELUZENTE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS3DRenderer.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Bold, sans-serif; }
@@ -14,34 +15,56 @@
         .container { 
             width: 440px; background: #000; 
             border-radius: 15px; border: 2px solid #ff0000; 
-            box-shadow: 0 0 35px rgba(255, 0, 0, 0.4); 
-            display: flex; flex-direction: column;
+            box-shadow: 0 0 35px rgba(255, 0, 0, 0.6); 
+            display: flex; flex-direction: column; position: relative;
         }
 
         .title { font-size: 22px; text-align: center; font-weight: bold; color: #ff0000; padding: 12px; text-shadow: 2px 2px #000; letter-spacing: 3px; }
-        #canvas-globe { width: 100%; height: 320px; background: #000; cursor: crosshair; }
+        
+        #canvas-globe { width: 100%; height: 320px; background: #000; cursor: grab; position: relative; }
+        #css3d-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 
         .header { 
             padding: 12px 20px; 
-            background: rgba(100, 0, 0, 0.4); 
+            background: rgba(120, 0, 0, 0.4); 
             border-top: 1px solid #ff0000; 
             border-bottom: 1px solid #ff0000;
             display: flex; justify-content: space-between; align-items: center; 
         }
-        .live-indicator { font-size: 20px; font-weight: 900; color: #00ff00; }
+        .live-indicator { font-size: 20px; font-weight: 900; color: #00ff00; text-shadow: 0 0 10px #00ff00; }
         #time { font-size: 20px; font-weight: bold; color: #fff; font-family: monospace; }
 
         .location-list-wrapper { height: 50px; overflow: hidden; background: #050000; }
         .location-list { display: flex; flex-direction: column; transition: transform 0.8s ease-in-out; }
         .location-item { height: 50px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 16px; text-transform: uppercase; font-weight: bold; color: #fff; }
         .location-item img { width: 28px; border: 1px solid #444; }
+
+        /* ETIQUETA VERMELHO RELUZENTE */
+        .globe-label {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 18px;
+            background: rgba(0, 0, 0, 0.8); /* Fundo escuro transparente */
+            border-radius: 25px;
+            border: 2px solid #ff0000;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 1), inset 0 0 10px rgba(255, 0, 0, 0.4);
+            pointer-events: none;
+            backface-visibility: hidden;
+        }
+        .globe-label img { width: 30px; border-radius: 4px; box-shadow: 0 0 5px #000; }
+        .globe-label span {
+            color: #ff3333; /* Vermelho vibrante */
+            font-weight: 900; font-size: 20px; text-transform: uppercase;
+            text-shadow: 0 0 8px #ff0000, 0 0 15px #ff0000;
+            white-space: nowrap;
+        }
+        .dot-marker { width: 12px; height: 12px; background: #00ff00; border-radius: 50%; box-shadow: 0 0 12px #00ff00; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="title">🎧 RAU RADAR 🎶</div>
-    <div id="canvas-globe"></div>
+    <div id="canvas-globe"><div id="css3d-layer"></div></div>
     <div class="header">
         <div class="live-indicator">LIVE: <span id="visNum">01</span></div>
         <span id="time">00:00:00</span>
@@ -55,12 +78,16 @@
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
     const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 5);
 
-    // Setup Visual
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(40, 440 / 320, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(440, 320);
     document.getElementById('canvas-globe').appendChild(renderer.domElement);
+
+    const css3dScene = new THREE.Scene();
+    const css3dRenderer = new THREE.CSS3DRenderer();
+    css3dRenderer.setSize(440, 320);
+    document.getElementById('css3d-layer').appendChild(css3dRenderer.domElement);
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -72,114 +99,74 @@
         new THREE.MeshPhongMaterial({ map: new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg') })
     );
     globeGroup.add(earth);
-    scene.add(new THREE.AmbientLight(0xffffff, 1.3));
+    scene.add(new THREE.AmbientLight(0xffffff, 1.4));
 
     camera.position.set(2.4, 1.2, 2.0);
     camera.lookAt(0, 0, 0);
 
     let activeMarkers = new Map();
 
-    function latLngToVec(lat, lng) {
+    function latLngToVec(lat, lng, radius = 1.02) {
         const phi = (90 - lat) * (Math.PI / 180);
         const theta = (lng + 180) * (Math.PI / 180);
-        return new THREE.Vector3(-1.015 * Math.sin(phi) * Math.cos(theta), 1.015 * Math.cos(phi), 1.015 * Math.sin(phi) * Math.sin(theta));
+        return new THREE.Vector3(-radius * Math.sin(phi) * Math.cos(theta), radius * Math.cos(phi), radius * Math.sin(phi) * Math.sin(theta));
     }
 
-    async function createLabel(city, code, color) {
-        const group = new THREE.Group();
-        const dot = new THREE.Mesh(new THREE.SphereGeometry(0.015, 12, 12), new THREE.MeshBasicMaterial({ color: color }));
-        group.add(dot);
-
-        if (city) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 400; canvas.height = 100;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-            ctx.roundRect(0, 10, 380, 75, 15); ctx.fill();
-            ctx.strokeStyle = color === 0x00ff00 ? '#00ff00' : '#660000';
-            ctx.lineWidth = 4; ctx.stroke();
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 36px Segoe UI';
-            ctx.fillText(city.toUpperCase(), 105, 60);
-
-            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
-            sprite.position.set(0, 0.18, 0); 
-            sprite.scale.set(0.75, 0.19, 1);
-            group.add(sprite);
-
-            const img = new Image();
-            img.crossOrigin = "anonymous";
-            img.src = `https://flagcdn.com/w80/${code}.png`;
-            img.onload = () => { ctx.drawImage(img, 20, 25, 70, 45); sprite.material.map.needsUpdate = true; };
-        }
-        return group;
-    }
-
-    // SISTEMA DE DETEÇÃO BLINDADO
-    async function getTrueLocation() {
-        try {
-            // Check 1: Cloudflare Edge (O mais fiável para Singapura)
-            const cfText = await fetch('https://www.cloudflare.com/cdn-cgi/trace').then(r => r.text());
-            const cf = Object.fromEntries(cfText.split('\n').map(l => l.split('=')));
-            
-            // Check 2: Serviço de Geolocalização por IP
-            const res = await fetch(`https://ipapi.co/${cf.ip}/json/`);
-            const d = await res.json();
-
-            // LÓGICA DE OVERRIDE PARA SINGAPURA
-            if (cf.loc === 'SG' || d.country_code === 'SG' || d.city === 'Singapore') {
-                return { city: "Singapore", code: "sg", lat: 1.3521, lng: 103.8198 };
-            }
-
-            return { 
-                city: d.city || "Online", 
-                code: (d.country_code || "pt").toLowerCase(), 
-                lat: d.latitude || 38.7, 
-                lng: d.longitude || -9.1 
-            };
-        } catch (e) {
-            return { city: "Singapore", code: "sg", lat: 1.3521, lng: 103.8198 }; // Fallback de segurança
-        }
+    function createReluzenteLabel(city, code) {
+        const div = document.createElement('div');
+        div.className = 'globe-label';
+        div.innerHTML = `<div class="dot-marker"></div><img src="https://flagcdn.com/w40/${code}.png"><span>${city}</span>`;
+        const object = new THREE.CSS3DSprite(div);
+        object.scale.set(0.0022, 0.0022, 0.0022);
+        return object;
     }
 
     async function initRadar() {
-        const locData = await getTrueLocation();
-        const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
-        const channel = ably.channels.get('rau-radar-final-v1');
+        try {
+            const res = await fetch("http://ip-api.com/json/");
+            const d = await res.json();
+            let locData = { city: d.city, code: d.countryCode.toLowerCase(), lat: d.lat, lng: d.lon };
+            if (d.countryCode === 'SG') locData = { city: "Singapore", code: "sg", lat: 1.3521, lng: 103.8198 };
 
-        channel.presence.enter(locData);
+            const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
+            const channel = ably.channels.get('rau-radar-v30');
+            channel.presence.enter(locData);
 
-        channel.presence.subscribe(async () => {
-            channel.presence.get(async (err, members) => {
-                if (err) return;
-                document.getElementById('visNum').innerText = (members.length < 10 ? "0" : "") + members.length;
-                const list = document.getElementById("locationData");
-                list.innerHTML = "";
-                
-                activeMarkers.forEach(m => { if(m.status === 'online') globeGroup.remove(m.obj); });
-                activeMarkers.clear();
+            channel.presence.subscribe(() => {
+                channel.presence.get((err, members) => {
+                    if (err) return;
+                    document.getElementById('visNum').innerText = (members.length < 10 ? "0" : "") + members.length;
+                    const list = document.getElementById("locationData");
+                    list.innerHTML = "";
+                    activeMarkers.forEach(m => css3dScene.remove(m.label));
+                    activeMarkers.clear();
 
-                for (const m of members) {
-                    const u = m.data; if (!u || !u.lat) continue;
-                    const div = document.createElement("div");
-                    div.className = "location-item";
-                    div.innerHTML = `<img src="https://flagcdn.com/w40/${u.code}.png"> <span>${u.city}</span>`;
-                    list.appendChild(div);
+                    members.forEach(m => {
+                        const u = m.data; if (!u || !u.lat) return;
+                        const item = document.createElement("div");
+                        item.className = "location-item";
+                        item.innerHTML = `<img src="https://flagcdn.com/w40/${u.code}.png"> <span>${u.city}</span>`;
+                        list.appendChild(item);
 
-                    const mkr = await createLabel(u.city, u.code, 0x00ff00);
-                    mkr.position.copy(latLngToVec(u.lat, u.lng));
-                    globeGroup.add(mkr);
-                    activeMarkers.set(m.clientId, {obj: mkr, status: 'online'});
-                }
+                        const label = createReluzenteLabel(u.city, u.code);
+                        label.position.copy(latLngToVec(u.lat, u.lng));
+                        css3dScene.add(label);
+                        activeMarkers.set(m.clientId, {label});
+                    });
+                });
             });
-        });
+        } catch (e) { console.error(e); }
     }
 
     function animate() {
         requestAnimationFrame(animate);
-        globeGroup.rotation.y += 0.0012;
+        // VELOCIDADE AUMENTADA: De 0.0015 para 0.0035
+        globeGroup.rotation.y += 0.0035; 
+        css3dScene.rotation.y = globeGroup.rotation.y;
+
         controls.update();
         renderer.render(scene, camera);
+        css3dRenderer.render(css3dScene, camera);
     }
 
     setInterval(() => {
