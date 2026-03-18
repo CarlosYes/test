@@ -3,67 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU SYSTEM v92 - REBORN</title>
+    <title>RAU SYSTEM v92 - BRIGHT EDITION</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
         body { background: #000; color: #fff; padding: 10px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
         
-        /* CONTAINER PRINCIPAL ESTILO RAU */
         .container { 
             width: 100%; max-width: 440px; 
-            background: rgba(15, 0, 0, 0.98); 
-            border-radius: 15px; border: 2px solid #ff0000; 
-            box-shadow: 0 0 30px rgba(255, 0, 0, 0.5); 
+            background: rgba(10, 0, 0, 0.98); 
+            border-radius: 15px; border: 2.5px solid #ff0000; 
+            box-shadow: 0 0 35px rgba(255, 0, 0, 0.6); 
             overflow: hidden; position: relative;
             display: flex; flex-direction: column;
         }
 
-        .title { font-size: 22px; text-align: center; font-weight: bold; color: #ff4444; padding: 12px; text-shadow: 2px 2px #000; letter-spacing: 2px; border-bottom: 1px solid rgba(255,0,0,0.2); }
+        .title { font-size: 22px; text-align: center; font-weight: bold; color: #ff4444; padding: 12px; text-shadow: 2px 2px #000; letter-spacing: 2px; border-bottom: 2px solid rgba(255,0,0,0.3); }
         
-        /* ÁREA ONDE O GLOBO APARECE */
         #canvas-globe { 
             width: 100%; height: 320px; 
-            background: radial-gradient(circle at center, #1a0000 0%, #000 100%); 
+            background: #000; 
             position: relative; 
-            cursor: move;
         }
 
-        .header { padding: 12px; background: rgba(120, 0, 0, 0.3); border-top: 1px solid rgba(255,0,0,0.4); text-align: center; }
+        .header { padding: 12px; background: rgba(150, 0, 0, 0.25); border-top: 1px solid rgba(255,0,0,0.4); text-align: center; }
         .info-row { display: flex; justify-content: center; align-items: center; gap: 20px; }
-        #time { font-size: 22px; font-weight: bold; color: #fff; font-family: monospace; }
+        #time { font-size: 22px; font-weight: bold; color: #fff; font-family: 'Courier New', monospace; }
         
-        .vis-pill { background: #ff0000; padding: 4px 15px; border-radius: 20px; font-size: 20px; font-weight: bold; color: #fff; border: 1px solid #fff; min-width: 70px; text-align: center; box-shadow: 0 0 10px #f00; }
+        .vis-pill { background: #ff0000; padding: 5px 18px; border-radius: 20px; font-size: 22px; font-weight: 900; color: #fff; border: 2px solid #fff; min-width: 80px; text-align: center; box-shadow: 0 0 15px #f00; }
 
         .location-list { 
-            max-height: 150px; 
+            max-height: 160px; 
             overflow-y: auto; 
-            padding: 10px; 
-            background: #050000; 
-            border-top: 1px solid #300; 
+            padding: 12px; 
+            background: #080000; 
+            border-top: 2px solid #400; 
         }
         
         .location-item { 
-            padding: 8px; 
-            background: rgba(255,0,0,0.1); 
-            border-left: 4px solid #f00; 
-            border-radius: 4px; 
+            padding: 10px; 
+            background: rgba(255,0,0,0.12); 
+            border-left: 5px solid #f00; 
+            border-radius: 5px; 
             display: flex; 
             align-items: center; 
             gap: 12px; 
-            margin-bottom: 8px;
+            margin-bottom: 10px;
             font-size: 13px;
             text-transform: uppercase;
-            font-weight: bold;
+            font-weight: 900;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
         }
-        .location-item img { width: 22px; border-radius: 2px; }
+        .location-item img { width: 24px; height: 16px; border-radius: 2px; border: 1px solid rgba(255,255,255,0.3); }
 
-        #date { font-size: 11px; margin-top: 6px; color: #ffaaaa; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+        #date { font-size: 11px; margin-top: 6px; color: #ffaaaa; font-weight: bold; text-transform: uppercase; letter-spacing: 1.5px; }
 
-        /* Scrollbar Personalizada */
-        .location-list::-webkit-scrollbar { width: 5px; }
-        .location-list::-webkit-scrollbar-track { background: #000; }
+        /* Scrollbar */
+        .location-list::-webkit-scrollbar { width: 6px; }
         .location-list::-webkit-scrollbar-thumb { background: #f00; border-radius: 10px; }
     </style>
 </head>
@@ -86,11 +83,10 @@
 </div>
 
 <script>
-    // DADOS DO TEU GLOBO E ABLY
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
     const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 7);
 
-    // --- CONFIGURAÇÃO DO GLOBO 3D (THREE.JS) ---
+    // --- CONFIGURAÇÃO DO GLOBO ILUMINADO ---
     const container = document.getElementById('canvas-globe');
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
@@ -99,34 +95,41 @@
     renderer.setSize(container.clientWidth, container.clientHeight);
     container.appendChild(renderer.domElement);
 
-    // Criar a Esfera (O Globo)
+    // Texturas de alta visibilidade
+    const textureLoader = new THREE.TextureLoader();
+    const earthMap = textureLoader.load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg');
+
     const geometry = new THREE.SphereGeometry(1, 64, 64);
     const material = new THREE.MeshPhongMaterial({
-        map: new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/earth-night.jpg'),
-        bumpMap: new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/earth-topology.png'),
-        bumpScale: 0.05,
-        shininess: 5
+        map: earthMap,
+        shininess: 15,
+        reflectivity: 1
     });
     const globe = new THREE.Mesh(geometry, material);
     scene.add(globe);
 
-    // Iluminação para dar o efeito 3D real
-    const light = new THREE.AmbientLight(0xffffff, 0.8);
-    scene.add(light);
-    const pointLight = new THREE.PointLight(0xff4444, 1); // Luz vermelha lateral
-    pointLight.position.set(5, 3, 5);
-    scene.add(pointLight);
+    // SISTEMA DE LUZES (MÁXIMA CLARIDADE)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2); // Luz geral muito forte
+    scene.add(ambientLight);
 
-    camera.position.z = 2.8;
+    const sunLight = new THREE.DirectionalLight(0xffffff, 0.8); // Luz frontal
+    sunLight.position.set(5, 3, 5);
+    scene.add(sunLight);
+
+    const redGlow = new THREE.PointLight(0xff0000, 1.5, 10); // Brilho vermelho de fundo
+    redGlow.position.set(-2, -1, -3);
+    scene.add(redGlow);
+
+    camera.position.z = 2.6;
 
     function animateGlobe() {
         requestAnimationFrame(animateGlobe);
-        globe.rotation.y += 0.003; // Rotação contínua
+        globe.rotation.y += 0.004;
         renderer.render(scene, camera);
     }
     animateGlobe();
 
-    // --- LÓGICA DE DADOS (ABLY + BIGDATACLOUD) ---
+    // --- LÓGICA DE DADOS ---
     function updateClock() {
         const n = new Date();
         document.getElementById('time').textContent = n.toLocaleTimeString();
@@ -153,15 +156,11 @@
 
             ably.connection.on('connected', () => {
                 channel.presence.enter(geo);
-
                 channel.presence.subscribe(['enter', 'leave', 'present', 'update'], () => {
                     channel.presence.get((err, members) => {
                         if (!err) {
-                            // Contador formatado 00
                             let total = members.length;
                             document.getElementById('visNum').innerText = total < 10 ? "0" + total : total;
-
-                            // Lista de Visitantes
                             const list = document.getElementById("locationData");
                             list.innerHTML = "";
                             members.forEach(member => {
@@ -177,7 +176,7 @@
                     });
                 });
             });
-        } catch(e) { console.error("Erro no Radar"); }
+        } catch(e) { console.error(e); }
     }
 
     startSystem();
