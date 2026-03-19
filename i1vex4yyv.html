@@ -17,176 +17,172 @@
             display: flex; flex-direction: column; background: #000;
         }
 
-        .title { font-size: 22px; text-align: center; font-weight: 900; color: #ff0000; padding: 12px; text-shadow: 0 0 10px #ff0000; letter-spacing: 3px; }
-        #canvas-globe { width: 100%; height: 320px; position: relative; cursor: grab; }
+        .title { font-size: 22px; text-align: center; font-weight: 900; color: #ff0000; padding: 12px; text-shadow: 0 0 10px #ff0000; letter-spacing: 3px; z-index: 100; }
+        
+        #canvas-container { width: 100%; height: 350px; position: relative; cursor: grab; overflow: hidden; }
 
         .header { 
             padding: 12px 20px; background: rgba(150, 0, 0, 0.3); 
             border-top: 1px solid #ff0000; display: flex; justify-content: space-between; align-items: center; 
+            z-index: 100;
         }
         #time { font-size: 20px; font-weight: 900; color: #fff; }
         .vis-pill { background: #ff0000; padding: 4px 15px; border-radius: 20px; font-size: 20px; font-weight: bold; color: #fff; border: 1px solid #fff; }
 
-        /* --- Estilo das Etiquetas Neon Atualizado --- */
-        .location-tag { position: absolute; pointer-events: none; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -100%); }
-        
-        /* Quadro da Cidade/Bandeira: Escuro e Transparente */
-        .tag-box {
-            background: rgba(10, 10, 10, 0.75); /* Tom escuro meio transparente */
-            color: #39ff14; /* Texto verde neon para leitura */
-            padding: 4px 10px; border-radius: 4px;
+        /* Etiquetas no Globo (Efeito Transparente e Suave) */
+        .location-tag { 
+            position: absolute; pointer-events: none; display: flex; flex-direction: column; align-items: center; 
+            transform: translate(-50%, -100%); transition: opacity 0.4s ease;
+        }
+        .tag-box-globe {
+            background: rgba(0, 0, 0, 0.7); 
+            color: #39ff14; padding: 4px 10px; border-radius: 4px;
             font-size: 11px; font-weight: 900; display: flex; align-items: center; gap: 6px;
-            border: 1px solid rgba(57, 255, 20, 0.5); /* Borda verde sutil transparente */
-            white-space: nowrap; box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(2px); /* Leve desfoque no fundo para estilo */
+            border: 1px solid rgba(57, 255, 20, 0.4);
+            white-space: nowrap; backdrop-filter: blur(3px);
         }
-        .tag-box img { width: 18px; height: 12px; object-fit: cover; border-radius: 1px; }
-        
-        /* Pontinho Minúsculo Verde: Somente o ponto */
-        .dot-green { 
-            width: 8px; height: 8px; /* Minúsculo */
-            background: #39ff14; /* Verde Neon Sólido */
-            border-radius: 50%; 
-            margin-top: 3px; /* Espaço entre a tag e o ponto */
-            box-shadow: 0 0 8px #39ff14; /* Brilho neon */
-            border: none; /* Sem bordas */
-        }
+        .tag-box-globe img { width: 18px; height: 12px; object-fit: cover; }
+        .dot-green { width: 8px; height: 8px; background: #39ff14; border-radius: 50%; margin-top: 3px; box-shadow: 0 0 8px #39ff14; }
 
-        .location-list { max-height: 150px; overflow-y: auto; padding: 10px; background: #050000; border-top: 1px solid #300; }
-        .location-item { 
-            padding: 8px; background: rgba(255,0,0,0.1); border-left: 4px solid #f00; 
-            border-radius: 4px; display: flex; align-items: center; gap: 10px; 
-            margin-bottom: 5px; font-size: 12px; color: #fff; text-transform: uppercase; font-weight: bold; 
+        /* Rodapé: Uma Cidade de Cada Vez */
+        .footer-display { 
+            height: 70px; display: flex; justify-content: center; align-items: center;
+            background: #050000; border-top: 1px solid #300; overflow: hidden; position: relative;
         }
-        .location-item img { width: 22px; }
+        #singleLocation {
+            width: 90%; height: 45px; display: flex; align-items: center; justify-content: center;
+            background: rgba(255,0,0,0.1); border-left: 4px solid #f00; border-right: 4px solid #f00;
+            border-radius: 4px; gap: 15px; font-size: 16px; color: #fff; text-transform: uppercase; font-weight: bold;
+            transition: transform 0.6s ease, opacity 0.6s ease;
+        }
+        #singleLocation img { width: 30px; border-radius: 2px; }
     </style>
 </head>
 <body oncontextmenu="return false">
 
 <div class="container">
     <div class="title">🎧 RAU RADAR v93 🎶</div>
-    <div id="canvas-globe"></div>
+    <div id="canvas-container"></div>
     <div class="header">
         <span id="time">00:00:00</span>
         <div class="vis-pill">👥 <span id="visNum">00</span></div>
     </div>
-    <div class="location-list" id="locationData"></div>
+    <div class="footer-display">
+        <div id="singleLocation">AGUARDANDO CONEXÕES...</div>
+    </div>
 </div>
 
 <script>
-    // 1. CONFIGURAÇÃO DO GLOBO (THREE.JS)
+    // 1. GLOBO COM ZOOM
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, 440 / 320, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(40, 440 / 350, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(440, 320);
-    document.getElementById('canvas-globe').appendChild(renderer.domElement);
+    renderer.setSize(440, 350);
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
 
     const globeGroup = new THREE.Group();
     scene.add(globeGroup);
 
-    // Textura noturna
-    const imgTerra = 'https://unpkg.com/three-globe/example/img/earth-night.jpg';
     const globe = new THREE.Mesh(
-        new THREE.SphereGeometry(1, 64, 64),
-        new THREE.MeshPhongMaterial({ map: new THREE.TextureLoader().load(imgTerra) })
+        new THREE.SphereGeometry(1.2, 64, 64),
+        new THREE.MeshPhongMaterial({ 
+            map: new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/earth-night.jpg') 
+        })
     );
     globeGroup.add(globe);
-    scene.add(new THREE.AmbientLight(0xffffff, 1.6));
+    scene.add(new THREE.AmbientLight(0xffffff, 1.8));
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableZoom = false;
     controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.5;
+    controls.autoRotateSpeed = 0.8;
 
-    // FOCO INICIAL: ARÁBIA SAUDITA (Lat: 23.8, Lon: 45.0)
+    // Foco Inicial: Arábia Saudita
     const phi = (90 - 23.8) * (Math.PI / 180);
     const theta = (45.0 + 180) * (Math.PI / 180);
-    camera.position.set(
-        -2.5 * Math.sin(phi) * Math.cos(theta),
-        2.5 * Math.cos(phi),
-        2.5 * Math.sin(phi) * Math.sin(theta)
-    );
+    camera.position.set(-2.4 * Math.sin(phi) * Math.cos(theta), 2.4 * Math.cos(phi), 2.4 * Math.sin(phi) * Math.sin(theta));
     controls.update();
 
-    // 2. LOGICA ABLY E LOCALIZAÇÃO (VIA WORKER)
+    // 2. LOGICA ABLY E DADOS
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
     const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 7);
     let markers = [];
+    let currentMembers = [];
+    let currentIndex = 0;
 
     async function startAbly() {
         let myProfile = { city: "RAU USER", code: "pt", lat: 38.7, lng: -9.1 };
-
         try {
-            // No Cloudflare Worker, os dados da request.cf eliminam erros e limites
-            const response = await fetch("https://ipapi.co/json/"); // Fallback
+            const response = await fetch("https://ipapi.co/json/");
             const d = await response.json();
-            if(d.latitude) {
-                myProfile = { 
-                    city: (d.city || "RAU").toUpperCase(), 
-                    code: (d.country_code || "pt").toLowerCase(), 
-                    lat: d.latitude, 
-                    lng: d.longitude 
-                };
-            }
-        } catch(e) { console.warn("Usando perfil padrão"); }
+            if(d.latitude) myProfile = { city: d.city.toUpperCase(), code: d.country_code.toLowerCase(), lat: d.latitude, lng: d.longitude };
+        } catch(e) {}
 
         const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
         const channel = ably.channels.get('rau-final-live');
-        
         channel.presence.enter(myProfile);
 
         channel.presence.subscribe(() => {
             channel.presence.get((err, members) => {
                 if (err) return;
-                const list = document.getElementById("locationData");
-                list.innerHTML = "";
+                currentMembers = members.filter(m => m.data && m.data.lat);
+                
+                // Limpar marcadores antigos
                 markers.forEach(m => { globeGroup.remove(m.dot); m.tag.remove(); });
                 markers = [];
 
-                members.forEach(m => {
-                    const u = m.data; if(!u || !u.lat) return;
-                    
-                    // Lista Lateral
-                    const item = document.createElement("div");
-                    item.className = "location-item";
-                    item.innerHTML = `<img src="https://flagcdn.com/w40/${u.code}.png"> <span>${u.city}</span>`;
-                    list.appendChild(item);
-
-                    // Ponto 3D invisível no Globo (para âncora)
+                currentMembers.forEach(m => {
+                    const u = m.data;
                     const pPhi = (90 - u.lat) * (Math.PI / 180);
                     const pTheta = (u.lng + 180) * (Math.PI / 180);
-                    const pos = new THREE.Vector3(
-                        -1.02 * Math.sin(pPhi) * Math.cos(pTheta), 
-                        1.02 * Math.cos(pPhi), 
-                        1.02 * Math.sin(pPhi) * Math.sin(pTheta)
-                    );
+                    const pos = new THREE.Vector3(-1.22 * Math.sin(pPhi) * Math.cos(pTheta), 1.22 * Math.cos(pPhi), 1.22 * Math.sin(pPhi) * Math.sin(pTheta));
                     
-                    // Ponto 3D oculto, usado apenas para o cálculo de posição da tag HTML
-                    const dot = new THREE.Mesh(
-                        new THREE.SphereGeometry(0.01, 8, 8), 
-                        new THREE.MeshBasicMaterial({ color: 0x39ff14, transparent: true, opacity: 0 })
-                    );
+                    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.01, 8, 8), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
                     dot.position.copy(pos);
                     globeGroup.add(dot);
 
-                    // Etiqueta Neon HTML
                     const tag = document.createElement('div');
                     tag.className = 'location-tag';
-                    tag.innerHTML = `
-                        <div class="tag-box">
-                            <img src="https://flagcdn.com/w20/${u.code}.png">
-                            <span>${u.city}</span>
-                        </div>
-                        <div class="dot-green"></div>
-                    `;
-                    document.getElementById('canvas-globe').appendChild(tag);
+                    tag.innerHTML = `<div class="tag-box-globe"><img src="https://flagcdn.com/w20/${u.code}.png"><span>${u.city}</span></div><div class="dot-green"></div>`;
+                    document.getElementById('canvas-container').appendChild(tag);
                     markers.push({ dot, tag, pos });
                 });
-                document.getElementById('visNum').innerText = members.length.toString().padStart(2, '0');
+                document.getElementById('visNum').innerText = currentMembers.length.toString().padStart(2, '0');
+                if(currentMembers.length > 0 && currentIndex === 0) updateFooter();
             });
         });
     }
 
+    // 3. ALTERNÂNCIA DA CIDADE NO RODAPÉ (CADA 5 SEGUNDOS)
+    function updateFooter() {
+        if (currentMembers.length === 0) return;
+        
+        const display = document.getElementById("singleLocation");
+        const member = currentMembers[currentIndex % currentMembers.length].data;
+
+        // Animação de saída para cima
+        display.style.transform = "translateY(-60px)";
+        display.style.opacity = "0";
+
+        setTimeout(() => {
+            display.innerHTML = `<img src="https://flagcdn.com/w40/${member.code}.png"> <span>${member.city}</span>`;
+            // Resetar posição para baixo para entrar deslizando
+            display.style.transform = "translateY(60px)";
+            
+            // Forçar reflow para a animação funcionar
+            display.offsetHeight; 
+
+            // Animação de entrada
+            display.style.transform = "translateY(0)";
+            display.style.opacity = "1";
+            
+            currentIndex++;
+        }, 600);
+    }
+
+    setInterval(updateFooter, 5000);
+
+    // 4. ANIMAÇÃO DO GLOBO E EFEITO "POR TRÁS"
     function animate() {
         requestAnimationFrame(animate);
         controls.update();
@@ -195,23 +191,23 @@
             const v = m.pos.clone().applyQuaternion(globeGroup.quaternion).project(camera);
             const dotDir = m.pos.clone().applyQuaternion(globeGroup.quaternion).normalize();
             const camDir = camera.position.clone().normalize();
-            const isVisible = dotDir.dot(camDir) > 0; // Oculta se estiver atrás do globo
+            const cosine = dotDir.dot(camDir);
 
-            if(isVisible && v.z < 1) {
+            if (cosine > 0) {
                 m.tag.style.display = 'flex';
+                m.tag.style.opacity = Math.min(1, cosine * 3);
                 m.tag.style.left = `${(v.x * 0.5 + 0.5) * 440}px`;
-                m.tag.style.top = `${(v.y * -0.5 + 0.5) * 320}px`;
-            } else { 
-                m.tag.style.display = 'none'; 
+                m.tag.style.top = `${(v.y * -0.5 + 0.5) * 350}px`;
+                m.tag.style.transform = `translate(-50%, -100%) scale(${0.85 + (cosine * 0.15)})`;
+            } else {
+                m.tag.style.opacity = '0';
+                m.tag.style.display = 'none';
             }
         });
         renderer.render(scene, camera);
     }
 
-    setInterval(() => { 
-        document.getElementById('time').textContent = new Date().toLocaleTimeString('pt-PT'); 
-    }, 1000);
-
+    setInterval(() => { document.getElementById('time').textContent = new Date().toLocaleTimeString('pt-PT'); }, 1000);
     startAbly(); animate();
 </script>
 </body>
