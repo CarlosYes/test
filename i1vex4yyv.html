@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v93 - CLOUDFLARE EDGE</title>
+    <title>RAU RADAR v93 - SMART DISPLAY</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -29,7 +29,7 @@
         #time { font-size: 20px; font-weight: 900; color: #fff; }
         .vis-pill { background: #ff0000; padding: 4px 15px; border-radius: 20px; font-size: 20px; font-weight: bold; color: #fff; border: 1px solid #fff; }
 
-        /* Etiquetas no Globo (Efeito Transparente e Suave) */
+        /* Etiquetas no Globo */
         .location-tag { 
             position: absolute; pointer-events: none; display: flex; flex-direction: column; align-items: center; 
             transform: translate(-50%, -100%); transition: opacity 0.4s ease;
@@ -44,7 +44,7 @@
         .tag-box-globe img { width: 18px; height: 12px; object-fit: cover; }
         .dot-green { width: 8px; height: 8px; background: #39ff14; border-radius: 50%; margin-top: 3px; box-shadow: 0 0 8px #39ff14; }
 
-        /* Rodapé: Uma Cidade de Cada Vez */
+        /* Rodapé Inteligente */
         .footer-display { 
             height: 70px; display: flex; justify-content: center; align-items: center;
             background: #050000; border-top: 1px solid #300; overflow: hidden; position: relative;
@@ -53,7 +53,7 @@
             width: 90%; height: 45px; display: flex; align-items: center; justify-content: center;
             background: rgba(255,0,0,0.1); border-left: 4px solid #f00; border-right: 4px solid #f00;
             border-radius: 4px; gap: 15px; font-size: 16px; color: #fff; text-transform: uppercase; font-weight: bold;
-            transition: transform 0.6s ease, opacity 0.6s ease;
+            transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.6s ease;
         }
         #singleLocation img { width: 30px; border-radius: 2px; }
     </style>
@@ -68,12 +68,12 @@
         <div class="vis-pill">👥 <span id="visNum">00</span></div>
     </div>
     <div class="footer-display">
-        <div id="singleLocation">AGUARDANDO CONEXÕES...</div>
+        <div id="singleLocation">LOCALIZANDO...</div>
     </div>
 </div>
 
 <script>
-    // 1. GLOBO COM ZOOM
+    // 1. GLOBO COM ZOOM HABILITADO
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(40, 440 / 350, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -93,17 +93,19 @@
     scene.add(new THREE.AmbientLight(0xffffff, 1.8));
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableZoom = false;
+    controls.enableZoom = true; // ZOOM ATIVADO COM O RATO
+    controls.minDistance = 1.8;
+    controls.maxDistance = 4.0;
     controls.autoRotate = true;
     controls.autoRotateSpeed = 0.8;
 
-    // Foco Inicial: Arábia Saudita
+    // Foco Inicial Arábia Saudita
     const phi = (90 - 23.8) * (Math.PI / 180);
     const theta = (45.0 + 180) * (Math.PI / 180);
     camera.position.set(-2.4 * Math.sin(phi) * Math.cos(theta), 2.4 * Math.cos(phi), 2.4 * Math.sin(phi) * Math.sin(theta));
     controls.update();
 
-    // 2. LOGICA ABLY E DADOS
+    // 2. LOGICA ABLY
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
     const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 7);
     let markers = [];
@@ -127,7 +129,6 @@
                 if (err) return;
                 currentMembers = members.filter(m => m.data && m.data.lat);
                 
-                // Limpar marcadores antigos
                 markers.forEach(m => { globeGroup.remove(m.dot); m.tag.remove(); });
                 markers = [];
 
@@ -147,42 +148,45 @@
                     document.getElementById('canvas-container').appendChild(tag);
                     markers.push({ dot, tag, pos });
                 });
+
                 document.getElementById('visNum').innerText = currentMembers.length.toString().padStart(2, '0');
-                if(currentMembers.length > 0 && currentIndex === 0) updateFooter();
+                
+                // Se houver apenas 1, mostra fixo imediatamente
+                if(currentMembers.length === 1) {
+                    const member = currentMembers[0].data;
+                    const display = document.getElementById("singleLocation");
+                    display.innerHTML = `<img src="https://flagcdn.com/w40/${member.code}.png"> <span>${member.city}</span>`;
+                    display.style.transform = "translateY(0)";
+                    display.style.opacity = "1";
+                }
             });
         });
     }
 
-    // 3. ALTERNÂNCIA DA CIDADE NO RODAPÉ (CADA 5 SEGUNDOS)
-    function updateFooter() {
-        if (currentMembers.length === 0) return;
+    // 3. ALTERNÂNCIA INTELIGENTE (CADA 5 SEGUNDOS)
+    function cycleFooter() {
+        if (currentMembers.length <= 1) return; // Fica parado se for 1 ou 0
         
         const display = document.getElementById("singleLocation");
-        const member = currentMembers[currentIndex % currentMembers.length].data;
+        currentIndex = (currentIndex + 1) % currentMembers.length;
+        const member = currentMembers[currentIndex].data;
 
-        // Animação de saída para cima
+        // Efeito de deslizar para cima para trocar
         display.style.transform = "translateY(-60px)";
         display.style.opacity = "0";
 
         setTimeout(() => {
             display.innerHTML = `<img src="https://flagcdn.com/w40/${member.code}.png"> <span>${member.city}</span>`;
-            // Resetar posição para baixo para entrar deslizando
             display.style.transform = "translateY(60px)";
-            
-            // Forçar reflow para a animação funcionar
             display.offsetHeight; 
-
-            // Animação de entrada
             display.style.transform = "translateY(0)";
             display.style.opacity = "1";
-            
-            currentIndex++;
         }, 600);
     }
 
-    setInterval(updateFooter, 5000);
+    setInterval(cycleFooter, 5000);
 
-    // 4. ANIMAÇÃO DO GLOBO E EFEITO "POR TRÁS"
+    // 4. ANIMAÇÃO
     function animate() {
         requestAnimationFrame(animate);
         controls.update();
