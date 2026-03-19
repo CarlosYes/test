@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAU RADAR v93 - SMART DISPLAY</title>
+    <title>RAU RADAR v93 - FINAL EDITION</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -29,19 +29,19 @@
         #time { font-size: 20px; font-weight: 900; color: #fff; }
         .vis-pill { background: #ff0000; padding: 4px 15px; border-radius: 20px; font-size: 20px; font-weight: bold; color: #fff; border: 1px solid #fff; }
 
-        /* Etiquetas no Globo */
+        /* Etiquetas no Globo (Efeito de Opacidade ao Circular) */
         .location-tag { 
             position: absolute; pointer-events: none; display: flex; flex-direction: column; align-items: center; 
-            transform: translate(-50%, -100%); transition: opacity 0.4s ease;
+            transform: translate(-50%, -100%); transition: opacity 0.5s ease;
         }
         .tag-box-globe {
-            background: rgba(0, 0, 0, 0.7); 
+            background: rgba(10, 10, 10, 0.75); 
             color: #39ff14; padding: 4px 10px; border-radius: 4px;
             font-size: 11px; font-weight: 900; display: flex; align-items: center; gap: 6px;
             border: 1px solid rgba(57, 255, 20, 0.4);
             white-space: nowrap; backdrop-filter: blur(3px);
         }
-        .tag-box-globe img { width: 18px; height: 12px; object-fit: cover; }
+        .tag-box-globe img { width: 18px; height: 12px; object-fit: cover; border-radius: 1px; }
         .dot-green { width: 8px; height: 8px; background: #39ff14; border-radius: 50%; margin-top: 3px; box-shadow: 0 0 8px #39ff14; }
 
         /* Rodapé Inteligente */
@@ -68,7 +68,7 @@
         <div class="vis-pill">👥 <span id="visNum">00</span></div>
     </div>
     <div class="footer-display">
-        <div id="singleLocation">LOCALIZANDO...</div>
+        <div id="singleLocation">A LOCALIZAR...</div>
     </div>
 </div>
 
@@ -93,19 +93,19 @@
     scene.add(new THREE.AmbientLight(0xffffff, 1.8));
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableZoom = true; // ZOOM ATIVADO COM O RATO
+    controls.enableZoom = true;
     controls.minDistance = 1.8;
-    controls.maxDistance = 4.0;
+    controls.maxDistance = 4.5;
     controls.autoRotate = true;
     controls.autoRotateSpeed = 0.8;
 
-    // Foco Inicial Arábia Saudita
+    // Início na Arábia Saudita
     const phi = (90 - 23.8) * (Math.PI / 180);
     const theta = (45.0 + 180) * (Math.PI / 180);
-    camera.position.set(-2.4 * Math.sin(phi) * Math.cos(theta), 2.4 * Math.cos(phi), 2.4 * Math.sin(phi) * Math.sin(theta));
+    camera.position.set(-2.5 * Math.sin(phi) * Math.cos(theta), 2.5 * Math.cos(phi), 2.5 * Math.sin(phi) * Math.sin(theta));
     controls.update();
 
-    // 2. LOGICA ABLY
+    // 2. LOGICA DE LOCALIZAÇÃO E ABLY
     const ABLY_KEY = '0XXKIg.kPL-iw:5hRGSGvPZCgUwMNts43-74X7nB9_25r3YlD0s-WE7vs';
     const SESSION_ID = 'RAU-' + Math.random().toString(36).substr(2, 7);
     let markers = [];
@@ -113,21 +113,40 @@
     let currentIndex = 0;
 
     async function startAbly() {
-        let myProfile = { city: "RAU USER", code: "pt", lat: 38.7, lng: -9.1 };
+        // Objeto de perfil sem nomes fictícios
+        let myProfile = { city: "DESCONHECIDO", code: "un", lat: 0, lng: 0 };
+
         try {
             const response = await fetch("https://ipapi.co/json/");
             const d = await response.json();
-            if(d.latitude) myProfile = { city: d.city.toUpperCase(), code: d.country_code.toLowerCase(), lat: d.latitude, lng: d.longitude };
-        } catch(e) {}
+            if(d.city && d.latitude) {
+                myProfile = { 
+                    city: d.city.toUpperCase(), 
+                    code: d.country_code.toLowerCase(), 
+                    lat: d.latitude, 
+                    lng: d.longitude 
+                };
+            }
+        } catch(e) {
+            console.warn("API 1 falhou. Tentando backup...");
+            try {
+                const res2 = await fetch("http://ip-api.com/json/");
+                const d2 = await res2.json();
+                if(d2.status === "success") {
+                    myProfile = { city: d2.city.toUpperCase(), code: d2.countryCode.toLowerCase(), lat: d2.lat, lng: d2.lon };
+                }
+            } catch(err) { myProfile.city = "GPS INDISPONÍVEL"; }
+        }
 
         const ably = new Ably.Realtime({ key: ABLY_KEY, clientId: SESSION_ID });
         const channel = ably.channels.get('rau-final-live');
+        
         channel.presence.enter(myProfile);
 
         channel.presence.subscribe(() => {
             channel.presence.get((err, members) => {
                 if (err) return;
-                currentMembers = members.filter(m => m.data && m.data.lat);
+                currentMembers = members.filter(m => m.data && m.data.lat !== 0);
                 
                 markers.forEach(m => { globeGroup.remove(m.dot); m.tag.remove(); });
                 markers = [];
@@ -151,7 +170,7 @@
 
                 document.getElementById('visNum').innerText = currentMembers.length.toString().padStart(2, '0');
                 
-                // Se houver apenas 1, mostra fixo imediatamente
+                // Mostrar fixo se houver apenas 1
                 if(currentMembers.length === 1) {
                     const member = currentMembers[0].data;
                     const display = document.getElementById("singleLocation");
@@ -163,15 +182,14 @@
         });
     }
 
-    // 3. ALTERNÂNCIA INTELIGENTE (CADA 5 SEGUNDOS)
+    // 3. CICLO DE RODAPÉ INTELIGENTE
     function cycleFooter() {
-        if (currentMembers.length <= 1) return; // Fica parado se for 1 ou 0
+        if (currentMembers.length <= 1) return; 
         
         const display = document.getElementById("singleLocation");
         currentIndex = (currentIndex + 1) % currentMembers.length;
         const member = currentMembers[currentIndex].data;
 
-        // Efeito de deslizar para cima para trocar
         display.style.transform = "translateY(-60px)";
         display.style.opacity = "0";
 
@@ -186,7 +204,7 @@
 
     setInterval(cycleFooter, 5000);
 
-    // 4. ANIMAÇÃO
+    // 4. RENDERIZAÇÃO E ANIMAÇÃO
     function animate() {
         requestAnimationFrame(animate);
         controls.update();
@@ -199,7 +217,7 @@
 
             if (cosine > 0) {
                 m.tag.style.display = 'flex';
-                m.tag.style.opacity = Math.min(1, cosine * 3);
+                m.tag.style.opacity = Math.min(1, cosine * 4); // Aparece suavemente
                 m.tag.style.left = `${(v.x * 0.5 + 0.5) * 440}px`;
                 m.tag.style.top = `${(v.y * -0.5 + 0.5) * 350}px`;
                 m.tag.style.transform = `translate(-50%, -100%) scale(${0.85 + (cosine * 0.15)})`;
